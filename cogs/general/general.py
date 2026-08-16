@@ -91,16 +91,33 @@ class General(commands.Cog):
         )
 
     @app_commands.command(
-        name="serverinfo",
-        description="Информация о сервере"
+    name="serverinfo",
+    description="Открыть карту LOST EDEN"
     )
-    async def serverinfo(self, interaction: discord.Interaction):
+    async def serverinfo(
+        self,
+        interaction: discord.Interaction
+    ):
         guild = interaction.guild
-        msg = (f"Название:  {guild.name} \n"
-        f"Id: {str(guild.id)} \n"
-        f"Участников: {str(guild.member_count)} \n"
-        f"Владелец: {(guild.owner.mention)}")
-        await interaction.response.send_message(msg)
+
+        if guild is None:
+            await interaction.response.send_message(
+                "Карта сада доступна только внутри сервера.",
+                ephemeral=True
+            )
+            return
+
+        view = ServerInfoView(
+            guild=guild,
+            user_id=interaction.user.id
+        )
+
+        await interaction.response.send_message(
+            embed=view.main_embed(),
+            view=view
+        )
+
+        view.message = await interaction.original_response()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(General(bot))
