@@ -3,7 +3,7 @@ import random
 import discord
 from discord import app_commands
 from discord.ext import commands
-from .views.coin_view import CoinView
+from views.coin_view import CoinView
 
 class Fun(commands.Cog):
     def __init__(self, bot: commands.Bot):

@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from config.theme import EDEN_GOLD
-from .views.info_view import ServerInfoView
+from views.info_view import ServerInfoView
 
 class General(commands.Cog):
     def __init__(self, bot: commands.Bot):

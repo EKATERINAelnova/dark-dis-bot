@@ -35,12 +35,8 @@ class BotClient(commands.Bot):
 
 client = BotClient()
 
-
 @client.event
 async def on_ready():
     print(f"Бот запущен: {client.user}")
-
-
-
 
 client.run(TOKEN)
