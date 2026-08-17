@@ -1,3 +1,5 @@
 discord.py
+discord.ext
+discord
 python-dotenv
 Pillow

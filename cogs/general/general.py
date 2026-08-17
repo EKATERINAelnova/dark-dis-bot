@@ -1,5 +1,8 @@
 import discord
-
+from utils.profile_card import (
+    ProfileStats,
+    create_profile_card
+)
 from discord import app_commands
 from discord.ext import commands
 from config.theme import EDEN_GOLD
@@ -19,6 +22,42 @@ class General(commands.Cog):
     ):
         await interaction.response.send_message("Pong!")
 
+    @app_commands.command(
+        name="profile",
+        description="Открыть профиль участника сада"
+    )
+    async def profile(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member | None = None
+    ):
+        if user is None:
+            user = interaction.user
+
+        await interaction.response.defer()
+        stats = ProfileStats(
+            level=27,
+            rank=12,
+            currency=1480,
+            messages=4362,
+            voice_seconds=462840,
+            total_xp=3423,
+            xp_to_next_level=2577
+        )
+
+        card = await create_profile_card(
+            user,
+            stats
+        )
+
+        file = discord.File(
+            card,
+            filename="profile.png"
+        )
+
+        await interaction.followup.send(
+            file=file
+        )
     
     @app_commands.command(
     name="userinfo",
