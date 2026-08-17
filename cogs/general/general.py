@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 from config.theme import EDEN_GOLD
 from views.info_view import ServerInfoView
+from database.member_stats import get_member_stats
 
 class General(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -21,7 +22,6 @@ class General(commands.Cog):
         interaction: discord.Interaction
     ):
         await interaction.response.send_message("Pong!")
-
     @app_commands.command(
         name="profile",
         description="Открыть профиль участника сада"
@@ -31,23 +31,41 @@ class General(commands.Cog):
         interaction: discord.Interaction,
         user: discord.Member | None = None
     ):
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "Профиль доступен только на сервере.",
+                ephemeral=True
+            )
+            return
+
         if user is None:
             user = interaction.user
 
         await interaction.response.defer()
-        stats = ProfileStats(
+
+        db_stats = await get_member_stats(
+            guild_id=interaction.guild.id,
+            user_id=user.id
+        )
+
+        print(db_stats)
+
+        profile_stats = ProfileStats(
+            # Пока тестовые, позже рассчитаем
             level=27,
             rank=12,
-            currency=1480,
-            messages=4362,
-            voice_seconds=462840,
             total_xp=3423,
-            xp_to_next_level=2577
+            xp_to_next_level=2577,
+
+            # Уже реальные данные из SQLite
+            currency=db_stats.currency,
+            messages=db_stats.messages,
+            voice_seconds=db_stats.voice_seconds
         )
 
         card = await create_profile_card(
             user,
-            stats
+            profile_stats
         )
 
         file = discord.File(

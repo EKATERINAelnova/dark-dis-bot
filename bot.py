@@ -3,6 +3,7 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from database.connection import init_db
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ class BotClient(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
+        intents.voice_states = True
 
         super().__init__(
             command_prefix="!",
@@ -21,8 +23,10 @@ class BotClient(commands.Bot):
         )
 
     async def setup_hook(self):
+        await init_db()
         await self.load_extension("cogs.general.general")
         await self.load_extension("cogs.fun.fun")
+        await self.load_extension("cogs.activity")
 
         guild = discord.Object(id=GID)
 
