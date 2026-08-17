@@ -15,6 +15,7 @@ class BotClient(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
+        intents.presences = True
         intents.voice_states = True
 
         super().__init__(
@@ -27,6 +28,8 @@ class BotClient(commands.Bot):
         await self.load_extension("cogs.general.general")
         await self.load_extension("cogs.fun.fun")
         await self.load_extension("cogs.activity")
+        await self.load_extension("cogs.welcome.banner")
+        await self.load_extension("cogs.server_stats")
 
         guild = discord.Object(id=GID)
 

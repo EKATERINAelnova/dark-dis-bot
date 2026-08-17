@@ -7,11 +7,55 @@ from discord import app_commands
 from discord.ext import commands
 from config.theme import EDEN_GOLD
 from views.info_view import ServerInfoView
+from utils.server_banner import create_server_banner
 from database.member_stats import get_member_stats
 
 class General(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @app_commands.command(
+        name="testbanner",
+        description="Тест обновления баннера"
+    )
+    async def testbanner(
+        self,
+        interaction: discord.Interaction
+    ):
+        guild = interaction.guild
+
+        if guild is None:
+            return
+
+        online_count = sum(
+            1
+            for member in guild.members
+            if member.status != discord.Status.offline
+            and not member.bot
+        )
+
+        member_count = sum(
+            1
+            for member in guild.members
+            if not member.bot
+        )
+
+        banner = create_server_banner(
+            online_count,
+            member_count
+        )
+
+        await guild.edit(
+            banner=banner,
+            reason="Тест динамического баннера"
+        )
+
+        await interaction.response.send_message(
+            f"Баннер обновлён: "
+            f"{online_count} в саду / "
+            f"{member_count} душ",
+            ephemeral=True
+        )
 
     @app_commands.command(
     name="ping",
