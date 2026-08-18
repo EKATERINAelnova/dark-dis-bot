@@ -1,9 +1,9 @@
-MESSAGE_XP = 5
+MESSAGE_XP = 3
 MESSAGE_XP_COOLDOWN = 60
 
 VOICE_XP_PER_MINUTE = 2
 
-LEVEL_BASE_XP = 1000
+LEVEL_BASE_XP = 100
 
 
 def xp_for_level(level: int) -> int:

@@ -67,4 +67,35 @@ async def init_db() -> None:
 
             print("[DB] Добавлена колонка xp")
 
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS currency_transactions (
+                transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+
+                amount INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+
+                description TEXT,
+                actor_id INTEGER,
+
+                created_at INTEGER NOT NULL
+            )
+            """
+        )
+
+        await db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_currency_transactions_user
+            ON currency_transactions (
+                guild_id,
+                user_id,
+                created_at
+            )
+            """
+        )
+
         await db.commit()

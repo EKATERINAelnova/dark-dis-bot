@@ -190,32 +190,3 @@ async def get_member_rank(
         row = await cursor.fetchone()
 
     return row[0] + 1
-
-async def change_currency(
-    guild_id: int,
-    user_id: int,
-    amount: int
-) -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            """
-            INSERT INTO member_stats (
-                guild_id,
-                user_id,
-                currency
-            )
-            VALUES (?, ?, MAX(?, 0))
-
-            ON CONFLICT(guild_id, user_id)
-            DO UPDATE SET
-                currency = MAX(currency + ?, 0)
-            """,
-            (
-                guild_id,
-                user_id,
-                amount,
-                amount
-            )
-        )
-
-        await db.commit()
