@@ -8,7 +8,14 @@ from discord.ext import commands
 from config.theme import EDEN_GOLD
 from views.info_view import ServerInfoView
 from utils.server_banner import create_server_banner
-from database.member_stats import get_member_stats
+from database.member_stats import (
+    get_member_stats,
+    get_member_rank
+)
+from config.leveling import (
+    level_from_xp,
+    xp_to_next_level
+)
 
 class General(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -66,6 +73,7 @@ class General(commands.Cog):
         interaction: discord.Interaction
     ):
         await interaction.response.send_message("Pong!")
+
     @app_commands.command(
         name="profile",
         description="Открыть профиль участника сада"
@@ -91,17 +99,23 @@ class General(commands.Cog):
             guild_id=interaction.guild.id,
             user_id=user.id
         )
+        level = level_from_xp(db_stats.xp)
 
+        rank = await get_member_rank(
+            guild_id=interaction.guild.id,
+            user_id=user.id
+        )
+
+        xp_left = xp_to_next_level(
+            db_stats.xp
+        )
         print(db_stats)
 
         profile_stats = ProfileStats(
-            # Пока тестовые, позже рассчитаем
-            level=27,
-            rank=12,
-            total_xp=3423,
-            xp_to_next_level=2577,
-
-            # Уже реальные данные из SQLite
+            level=level,
+            rank=rank,
+            total_xp=db_stats.xp,
+            xp_to_next_level=xp_left,
             currency=db_stats.currency,
             messages=db_stats.messages,
             voice_seconds=db_stats.voice_seconds

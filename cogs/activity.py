@@ -3,9 +3,14 @@ import time
 import discord
 from discord.ext import commands
 
+from config.leveling import (
+    MESSAGE_XP,
+    MESSAGE_XP_COOLDOWN
+)
+
 from database.member_stats import (
     add_voice_seconds,
-    increment_messages,
+    record_message,
 )
 
 
@@ -13,13 +18,21 @@ class Activity(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-        # (guild_id, user_id) -> время входа
-        self.voice_sessions: dict[tuple[int, int], float] = {}
+        self.voice_sessions: dict[
+            tuple[int, int],
+            float
+        ] = {}
+
+        self.last_message_xp: dict[
+            tuple[int, int],
+            float
+        ] = {}
 
 
     # =========================
     # MESSAGES
     # =========================
+
     @commands.Cog.listener()
     async def on_message(
         self,
@@ -31,15 +44,35 @@ class Activity(commands.Cog):
         if message.guild is None:
             return
 
-        await increment_messages(
+        key = (
+            message.guild.id,
+            message.author.id
+        )
+
+        now = time.monotonic()
+
+        last_xp_time = self.last_message_xp.get(key)
+
+        xp_gain = 0
+
+        if (
+            last_xp_time is None
+            or now - last_xp_time >= MESSAGE_XP_COOLDOWN
+        ):
+            xp_gain = MESSAGE_XP
+            self.last_message_xp[key] = now
+
+        await record_message(
             guild_id=message.guild.id,
-            user_id=message.author.id
+            user_id=message.author.id,
+            xp_gain=xp_gain
         )
 
 
     # =========================
     # VOICE
     # =========================
+
     @commands.Cog.listener()
     async def on_voice_state_update(
         self,
@@ -50,7 +83,6 @@ class Activity(commands.Cog):
         if member.bot:
             return
 
-        # ВРЕМЕННАЯ ПРОВЕРКА
         print(
             f"{member.display_name}: "
             f"{before.channel} -> {after.channel}"
@@ -64,13 +96,19 @@ class Activity(commands.Cog):
             member.id
         )
 
-        # Пользователь вошёл в голосовой канал
-        if before.channel is None and after.channel is not None:
+        # Вход
+        if (
+            before.channel is None
+            and after.channel is not None
+        ):
             self.voice_sessions[key] = time.monotonic()
             return
 
-        # Пользователь вышел
-        if before.channel is not None and after.channel is None:
+        # Выход
+        if (
+            before.channel is not None
+            and after.channel is None
+        ):
             started_at = self.voice_sessions.pop(
                 key,
                 None
@@ -82,9 +120,10 @@ class Activity(commands.Cog):
             seconds = int(
                 time.monotonic() - started_at
             )
-            
+
             print(
-                f"{member.display_name} провёл в voice: {seconds} сек."
+                f"{member.display_name} "
+                f"провёл в voice: {seconds} сек."
             )
 
             await add_voice_seconds(
@@ -95,7 +134,7 @@ class Activity(commands.Cog):
 
             return
 
-        # Переход между голосовыми каналами
+        # Переход между voice
         if (
             before.channel is not None
             and after.channel is not None

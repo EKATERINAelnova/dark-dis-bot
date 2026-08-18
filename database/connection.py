@@ -10,6 +10,10 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DB_DIR = BASE_DIR / "data"
 DB_PATH = DB_DIR / "eden.db"
 
+from config.leveling import (
+    MESSAGE_XP,
+    VOICE_XP_PER_MINUTE
+)
 
 async def init_db() -> None:
     DB_DIR.mkdir(exist_ok=True)

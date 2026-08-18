@@ -29,7 +29,6 @@ class BotClient(commands.Bot):
         await self.load_extension("cogs.fun.fun")
         await self.load_extension("cogs.activity")
         await self.load_extension("cogs.welcome.banner")
-        await self.load_extension("cogs.server_stats")
 
         guild = discord.Object(id=GID)
 
