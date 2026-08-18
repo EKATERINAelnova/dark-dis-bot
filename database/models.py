@@ -11,3 +11,4 @@ class MemberStats:
     messages: int = 0
     voice_seconds: int = 0
     currency: int = 0
+    xp: int = 0

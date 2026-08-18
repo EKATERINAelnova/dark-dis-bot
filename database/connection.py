@@ -23,11 +23,44 @@ async def init_db() -> None:
 
                 messages INTEGER NOT NULL DEFAULT 0,
                 voice_seconds INTEGER NOT NULL DEFAULT 0,
+                xp INTEGER NOT NULL DEFAULT 0,
                 currency INTEGER NOT NULL DEFAULT 0,
 
                 PRIMARY KEY (guild_id, user_id)
             )
             """
         )
+
+        cursor = await db.execute(
+            "PRAGMA table_info(member_stats)"
+        )
+
+        columns = {
+            row[1]
+            for row in await cursor.fetchall()
+        }
+
+        if "xp" not in columns:
+            await db.execute(
+                """
+                ALTER TABLE member_stats
+                ADD COLUMN xp INTEGER NOT NULL DEFAULT 0
+                """
+            )
+
+            await db.execute(
+                """
+                UPDATE member_stats
+                SET xp =
+                    messages * ?
+                    + CAST(voice_seconds / 60 AS INTEGER) * ?
+                """,
+                (
+                    MESSAGE_XP,
+                    VOICE_XP_PER_MINUTE
+                )
+            )
+
+            print("[DB] Добавлена колонка xp")
 
         await db.commit()

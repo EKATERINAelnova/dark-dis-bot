@@ -29,6 +29,7 @@ async def get_or_create_member(
                 user_id,
                 messages,
                 voice_seconds,
+                xp,
                 currency
             FROM member_stats
             WHERE guild_id = ?
@@ -44,7 +45,8 @@ async def get_or_create_member(
         user_id=row[1],
         messages=row[2],
         voice_seconds=row[3],
-        currency=row[4]
+        xp=row[4],
+        currency=row[5]
     )
 
 
