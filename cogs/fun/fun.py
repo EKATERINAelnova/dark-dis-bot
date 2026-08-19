@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from views.coin_view import CoinView
+from views.casino_view import CasinoView
 
 class Fun(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -34,6 +35,24 @@ class Fun(commands.Cog):
             view=view
         )
         random.choice(["Орёл", "Решка"])
+
+    @app_commands.command(
+        name="casino",
+        description="Азартные игры - это плохо"
+    )
+    async def casino(
+        self,
+        interaction: discord.Interaction
+    ):
+        view = CasinoView(
+            interaction.user.id
+        )
+
+        await interaction.response.send_message(
+            "🎰 **LOST EDEN CASINO**\n\n"
+            "Выбери игру:",
+            view=view
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Fun(bot))

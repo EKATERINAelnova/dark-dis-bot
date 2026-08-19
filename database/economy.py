@@ -3,7 +3,6 @@ import time
 import aiosqlite
 
 from database.connection import DB_PATH
-from config.economy import REASON_MESSAGE
 
 async def change_currency(
     guild_id: int,

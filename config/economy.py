@@ -1,5 +1,5 @@
 CURRENCY_NAME = "Seeds"
-CURRENCY_SYMBOL = "🌱"
+CURRENCY_SYMBOL = "🍎"
 
 MESSAGE_SEEDS = 1
 MESSAGE_SEEDS_COOLDOWN = 180
@@ -9,9 +9,13 @@ VOICE_SEEDS = 1
 VOICE_SEEDS_INTERVAL_MINUTES = 10
 VOICE_SEEDS_DAILY_LIMIT = 12
 
-REASON_MESSAGE = "message_activity"
-REASON_VOICE = "voice_activity"
+CASINO_MIN_BET = 10
+CASINO_MAX_BET = 100
+
+REASON_CASINO_BET = "casino_bet"
 REASON_LEVEL = "level_reward"
 REASON_EVENT = "event_reward"
 REASON_SHOP = "shop_purchase"
 REASON_ADMIN = "admin_adjustment"
+REASON_CASINO_PAYOUT = "casino_payout"
+REASON_CASINO_REFUND = "casino_refund"
