@@ -190,3 +190,27 @@ async def get_member_rank(
         row = await cursor.fetchone()
 
     return row[0] + 1
+
+async def ensure_members_exist(
+    guild_id: int,
+    user_ids: list[int],
+) -> None:
+    if not user_ids:
+        return
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.executemany(
+            """
+            INSERT OR IGNORE INTO member_stats (
+                guild_id,
+                user_id
+            )
+            VALUES (?, ?)
+            """,
+            [
+                (guild_id, user_id)
+                for user_id in user_ids
+            ],
+        )
+
+        await db.commit()

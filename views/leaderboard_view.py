@@ -273,13 +273,15 @@ class LeaderboardView(discord.ui.View):
         interaction: discord.Interaction,
         category: LeaderboardCategory,
     ):
+        await interaction.response.defer()
+
         self.category = category
 
         self.update_button_styles()
 
         embed = await self.build_embed()
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             embed=embed,
             view=self,
         )

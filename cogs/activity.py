@@ -12,6 +12,7 @@ from config.leveling import (
 from database.member_stats import (
     add_voice_seconds,
     record_message,
+    ensure_members_exist,
 )
 
 
