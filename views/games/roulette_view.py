@@ -1,10 +1,12 @@
 import secrets
+import traceback
 
 import discord
 
 from config.economy import CURRENCY_SYMBOL
 from database.economy import get_balance
 from services.casino import place_bet, payout
+from .result_casino_view import CasinoResultView
 
 
 RED_NUMBERS = {
@@ -31,6 +33,10 @@ class RouletteView(discord.ui.View):
         self.processing = False
         self.finished = False
 
+    # =========================================================
+    # ЗАЩИТА VIEW
+    # =========================================================
+
     async def interaction_check(
         self,
         interaction: discord.Interaction
@@ -43,6 +49,10 @@ class RouletteView(discord.ui.View):
             return False
 
         return True
+
+    # =========================================================
+    # ЦВЕТ ЧИСЛА
+    # =========================================================
 
     @staticmethod
     def get_color(number: int) -> str:
@@ -64,10 +74,18 @@ class RouletteView(discord.ui.View):
 
         return names[color]
 
+    # =========================================================
+    # КНОПКИ
+    # =========================================================
+
     def disable_all_buttons(self):
         for item in self.children:
             if isinstance(item, discord.ui.Button):
                 item.disabled = True
+
+    # =========================================================
+    # ИГРА
+    # =========================================================
 
     async def play(
         self,
@@ -88,123 +106,221 @@ class RouletteView(discord.ui.View):
             )
             return
 
-        # Защита от двух быстрых кликов.
         self.processing = True
 
-        await interaction.response.defer()
+        try:
+            # Сразу подтверждаем interaction.
+            await interaction.response.defer()
 
-        # Только СЕЙЧАС списываем ставку,
-        # потому что игрок уже выбрал цвет.
-        balance_after_bet = await place_bet(
-            guild_id=self.guild_id,
-            user_id=self.player_id,
-            bet=self.bet,
-            game="roulette"
-        )
+            # =================================================
+            # СПИСЫВАЕМ СТАВКУ
+            # =================================================
 
-        if balance_after_bet is None:
-            self.processing = False
-
-            current_balance = await get_balance(
-                guild_id=self.guild_id,
-                user_id=self.player_id
-            )
-
-            await interaction.followup.send(
-                (
-                    "Недостаточно средств для ставки.\n"
-                    f"Баланс: "
-                    f"**{current_balance} {CURRENCY_SYMBOL}**"
-                ),
-                ephemeral=True
-            )
-            return
-
-        # С этого момента ставка принята.
-        self.finished = True
-
-        # Европейская рулетка: 0–36.
-        number = secrets.randbelow(37)
-
-        result_color = self.get_color(number)
-
-        won = choice == result_color
-
-        choice_name = self.get_color_name(choice)
-        result_name = self.get_color_name(result_color)
-
-        if won:
-            # Красное / чёрное дают общую выплату x2.
-            #
-            # Zero имеет выплату 35:1,
-            # поэтому вместе с возвратом ставки x36.
-            if choice == "green":
-                multiplier = 36
-            else:
-                multiplier = 2
-
-            payout_amount = self.bet * multiplier
-
-            new_balance = await payout(
+            # В рулетке ставка списывается
+            # только после выбора цвета.
+            balance_after_bet = await place_bet(
                 guild_id=self.guild_id,
                 user_id=self.player_id,
-                amount=payout_amount,
-                game="roulette",
-                result=(
-                    f"win:"
-                    f"{choice}:"
-                    f"number={number}"
+                bet=self.bet,
+                game="roulette"
+            )
+
+            # Баланс мог измениться с момента
+            # выбора размера ставки.
+            if balance_after_bet is None:
+                self.processing = False
+
+                current_balance = await get_balance(
+                    guild_id=self.guild_id,
+                    user_id=self.player_id
                 )
+
+                await interaction.followup.send(
+                    (
+                        "Недостаточно средств для ставки.\n"
+                        f"Баланс: "
+                        f"**{current_balance} "
+                        f"{CURRENCY_SYMBOL}**"
+                    ),
+                    ephemeral=True
+                )
+
+                return
+
+            # После успешного списания
+            # повторно играть этой View уже нельзя.
+            self.finished = True
+
+            # =================================================
+            # КРУТИМ РУЛЕТКУ
+            # =================================================
+
+            # Европейская рулетка:
+            # числа от 0 до 36.
+            number = secrets.randbelow(37)
+
+            result_color = self.get_color(
+                number
             )
 
-            profit = payout_amount - self.bet
-
-            content = (
-                "## 🎡 Рулетка\n\n"
-                f"Колесо остановилось на "
-                f"**{result_name} {number}**\n\n"
-                f"Твоя ставка: **{choice_name}**\n"
-                f"Размер ставки: "
-                f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                "### Победа\n"
-                f"Коэффициент: **×{multiplier}**\n"
-                f"Выплата: "
-                f"**{payout_amount} {CURRENCY_SYMBOL}**\n"
-                f"Чистый выигрыш: "
-                f"**+{profit} {CURRENCY_SYMBOL}**\n\n"
-                f"Баланс: "
-                f"**{new_balance} {CURRENCY_SYMBOL}**"
+            won = (
+                choice == result_color
             )
 
-        else:
-            content = (
-                "## 🎡 Рулетка\n\n"
-                f"Колесо остановилось на "
-                f"**{result_name} {number}**\n\n"
-                f"Твоя ставка: **{choice_name}**\n"
-                f"Размер ставки: "
-                f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                "### Проигрыш\n"
-                f"Потеряно: "
-                f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                f"Баланс: "
-                f"**{balance_after_bet} {CURRENCY_SYMBOL}**"
+            choice_name = self.get_color_name(
+                choice
             )
 
-        self.disable_all_buttons()
+            result_name = self.get_color_name(
+                result_color
+            )
 
-        await interaction.edit_original_response(
-            content=content,
-            view=self
-        )
+            # =================================================
+            # ПОБЕДА
+            # =================================================
 
-        self.processing = False
-        self.stop()
+            if won:
+                # Красное / чёрное:
+                # полная выплата x2.
+                #
+                # Zero:
+                # прибыль 35:1,
+                # полная выплата x36.
+                if choice == "green":
+                    multiplier = 36
+                else:
+                    multiplier = 2
+
+                payout_amount = (
+                    self.bet * multiplier
+                )
+
+                new_balance = await payout(
+                    guild_id=self.guild_id,
+                    user_id=self.player_id,
+                    amount=payout_amount,
+                    game="roulette",
+                    result=(
+                        f"win:"
+                        f"{choice}:"
+                        f"number={number}"
+                    )
+                )
+
+                profit = (
+                    payout_amount - self.bet
+                )
+
+                content = (
+                    "## 🎡 Рулетка\n\n"
+                    f"Колесо остановилось на "
+                    f"**{result_name} {number}**\n\n"
+                    f"Твоя ставка: "
+                    f"**{choice_name}**\n"
+                    f"Размер ставки: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
+                    "### Победа\n"
+                    f"Коэффициент: "
+                    f"**×{multiplier}**\n"
+                    f"Выплата: "
+                    f"**{payout_amount} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Чистый выигрыш: "
+                    f"**+{profit} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
+                    f"Баланс: "
+                    f"**{new_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                )
+
+            # =================================================
+            # ПРОИГРЫШ
+            # =================================================
+
+            else:
+                content = (
+                    "## 🎡 Рулетка\n\n"
+                    f"Колесо остановилось на "
+                    f"**{result_name} {number}**\n\n"
+                    f"Твоя ставка: "
+                    f"**{choice_name}**\n"
+                    f"Размер ставки: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
+                    "### Проигрыш\n"
+                    f"Потеряно: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
+                    f"Баланс: "
+                    f"**{balance_after_bet} "
+                    f"{CURRENCY_SYMBOL}**"
+                )
+
+            # =================================================
+            # ЭКРАН ПОСЛЕ ИГРЫ
+            # =================================================
+
+            result_view = CasinoResultView(
+                player_id=self.player_id,
+                guild_id=self.guild_id,
+                game="roulette",
+                bet=self.bet
+            )
+
+            self.processing = False
+
+            # Сначала останавливаем RouletteView.
+            self.stop()
+
+            # Только потом устанавливаем новую View.
+            await interaction.edit_original_response(
+                content=content,
+                view=result_view
+            )
+
+        except Exception as error:
+            self.processing = False
+
+            print(
+                "[ROULETTE ERROR]",
+                type(error).__name__,
+                str(error)
+            )
+
+            traceback.print_exception(
+                type(error),
+                error,
+                error.__traceback__
+            )
+
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        "Произошла ошибка рулетки.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "Произошла ошибка рулетки.",
+                        ephemeral=True
+                    )
+
+            except Exception as response_error:
+                print(
+                    "[ROULETTE RESPONSE ERROR]",
+                    repr(response_error)
+                )
+
+    # =========================================================
+    # КРАСНОЕ
+    # =========================================================
 
     @discord.ui.button(
         label="Красное",
         emoji="🔴",
-        style=discord.ButtonStyle.danger
+        style=discord.ButtonStyle.danger,
+        custom_id="roulette_red"
     )
     async def red(
         self,
@@ -216,10 +332,15 @@ class RouletteView(discord.ui.View):
             "red"
         )
 
+    # =========================================================
+    # ЧЁРНОЕ
+    # =========================================================
+
     @discord.ui.button(
         label="Чёрное",
         emoji="⚫",
-        style=discord.ButtonStyle.secondary
+        style=discord.ButtonStyle.secondary,
+        custom_id="roulette_black"
     )
     async def black(
         self,
@@ -231,10 +352,15 @@ class RouletteView(discord.ui.View):
             "black"
         )
 
+    # =========================================================
+    # ZERO
+    # =========================================================
+
     @discord.ui.button(
         label="Zero",
         emoji="🟢",
-        style=discord.ButtonStyle.success
+        style=discord.ButtonStyle.success,
+        custom_id="roulette_green"
     )
     async def green(
         self,

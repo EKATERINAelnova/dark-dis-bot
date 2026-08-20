@@ -1,11 +1,17 @@
 import asyncio
 import secrets
+import traceback
 
 import discord
 
 from config.economy import CURRENCY_SYMBOL
 from services.casino import payout
+from .result_casino_view import CasinoResultView
 
+
+# =========================================================
+# СИМВОЛЫ
+# =========================================================
 
 SYMBOLS = {
     "🌿": 35,
@@ -25,6 +31,11 @@ PAYOUTS = {
 }
 
 
+# Создаём взвешенный пул символов.
+#
+# Например:
+# 🌿 встречается 35 раз,
+# 🐍 только 7 раз.
 SYMBOL_POOL = []
 
 for symbol, weight in SYMBOLS.items():
@@ -45,15 +56,25 @@ class SlotsView(discord.ui.View):
 
         self.player_id = player_id
         self.guild_id = guild_id
+
+        # Исходная ставка.
         self.bet = bet
+
+        # Баланс уже после списания ставки.
         self.balance_after_bet = balance_after_bet
 
         self.finished = False
+        self.processing = False
+
+    # =========================================================
+    # ГЕНЕРАЦИЯ СИМВОЛОВ
+    # =========================================================
 
     @staticmethod
     def spin() -> tuple[str, str, str]:
         """
-        Генерирует итоговые три символа.
+        Генерирует три случайных символа
+        с учётом их веса.
         """
 
         return (
@@ -62,12 +83,19 @@ class SlotsView(discord.ui.View):
             secrets.choice(SYMBOL_POOL)
         )
 
+    # =========================================================
+    # КОЭФФИЦИЕНТ
+    # =========================================================
+
     @staticmethod
     def get_multiplier(
         result: tuple[str, str, str]
     ) -> int:
         """
         Определяет коэффициент выигрыша.
+
+        Пока выигрыш существует только
+        при трёх одинаковых символах.
         """
 
         first, second, third = result
@@ -77,119 +105,208 @@ class SlotsView(discord.ui.View):
 
         return 0
 
+    # =========================================================
+    # ОТОБРАЖЕНИЕ
+    # =========================================================
+
     @staticmethod
     def format_result(
         result: tuple[str, str, str]
     ) -> str:
+        """
+        Например:
+
+        🍎   🌿   💎
+        """
+
         return "   ".join(result)
+
+    # =========================================================
+    # ЗАПУСК ИГРЫ
+    # =========================================================
 
     async def play(
         self,
         interaction: discord.Interaction
     ):
         """
-        Запускает слот:
-        анимация → результат → выплата.
+        Полный цикл слотов:
+
+        анимация
+        ↓
+        настоящий результат
+        ↓
+        выплата
+        ↓
+        CasinoResultView
         """
 
-        if self.finished:
+        if self.finished or self.processing:
             return
 
-        # -------------------------
-        # АНИМАЦИЯ
-        # -------------------------
+        self.processing = True
 
-        for _ in range(3):
-            animation_result = self.spin()
+        try:
+            # =================================================
+            # АНИМАЦИЯ
+            # =================================================
 
-            await interaction.edit_original_response(
-                content=(
-                    "## 🎰 Слоты\n\n"
-                    f"Ваша ставка: "
-                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    "### Крутим...\n\n"
-                    f"## {self.format_result(animation_result)}"
-                ),
-                view=None
+            for _ in range(3):
+                animation_result = self.spin()
+
+                await interaction.edit_original_response(
+                    content=(
+                        "## 🎰 Слоты\n\n"
+                        f"Ваша ставка: "
+                        f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
+                        "### Крутим...\n\n"
+                        f"## "
+                        f"{self.format_result(animation_result)}"
+                    ),
+                    view=None
+                )
+
+                await asyncio.sleep(0.7)
+
+            # =================================================
+            # НАСТОЯЩИЙ РЕЗУЛЬТАТ
+            # =================================================
+
+            result = self.spin()
+
+            multiplier = self.get_multiplier(
+                result
             )
 
-            await asyncio.sleep(0.7)
+            self.finished = True
 
-        # -------------------------
-        # НАСТОЯЩИЙ РЕЗУЛЬТАТ
-        # -------------------------
+            # =================================================
+            # ПРОИГРЫШ
+            # =================================================
 
-        result = self.spin()
+            if multiplier == 0:
+                result_view = CasinoResultView(
+                    player_id=self.player_id,
+                    guild_id=self.guild_id,
+                    game="slots",
+                    bet=self.bet
+                )
 
-        multiplier = self.get_multiplier(
-            result
-        )
-
-        self.finished = True
-
-        # -------------------------
-        # ПРОИГРЫШ
-        # -------------------------
-
-        if multiplier == 0:
-            await interaction.edit_original_response(
-                content=(
+                content = (
                     "## 🎰 Слоты\n\n"
                     f"Ваша ставка: "
                     f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    f"## {self.format_result(result)}\n\n"
+                    f"## "
+                    f"{self.format_result(result)}\n\n"
                     "### Проигрыш\n"
                     f"Потеряно: "
                     f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
                     f"Баланс: "
                     f"**{self.balance_after_bet} "
                     f"{CURRENCY_SYMBOL}**"
-                ),
-                view=None
+                )
+
+                # Сначала останавливаем старую View.
+                self.processing = False
+                self.stop()
+
+                # После этого ставим новую ResultView.
+                await interaction.edit_original_response(
+                    content=content,
+                    view=result_view
+                )
+
+                return
+
+            # =================================================
+            # ПОБЕДА
+            # =================================================
+
+            payout_amount = (
+                self.bet * multiplier
             )
 
-            self.stop()
-            return
-
-        # -------------------------
-        # ПОБЕДА
-        # -------------------------
-
-        payout_amount = (
-            self.bet * multiplier
-        )
-
-        new_balance = await payout(
-            guild_id=self.guild_id,
-            user_id=self.player_id,
-            amount=payout_amount,
-            game="slots",
-            result=(
-                f"win:"
-                f"{result[0]}"
-                f"{result[1]}"
-                f"{result[2]}"
+            new_balance = await payout(
+                guild_id=self.guild_id,
+                user_id=self.player_id,
+                amount=payout_amount,
+                game="slots",
+                result=(
+                    f"win:"
+                    f"{result[0]}"
+                    f"{result[1]}"
+                    f"{result[2]}"
+                )
             )
-        )
 
-        profit = (
-            payout_amount - self.bet
-        )
+            # Чистая прибыль.
+            #
+            # Например:
+            #
+            # ставка 50
+            # payout 150
+            #
+            # прибыль = +100
+            profit = (
+                payout_amount - self.bet
+            )
 
-        await interaction.edit_original_response(
-            content=(
+            result_view = CasinoResultView(
+                player_id=self.player_id,
+                guild_id=self.guild_id,
+                game="slots",
+                bet=self.bet
+            )
+
+            content = (
                 "## 🎰 Слоты\n\n"
                 f"Ваша ставка: "
                 f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                f"## {self.format_result(result)}\n\n"
+                f"## "
+                f"{self.format_result(result)}\n\n"
                 "### Победа\n"
-                f"Коэффициент: **×{multiplier}**\n"
+                f"Коэффициент: "
+                f"**×{multiplier}**\n"
                 f"Выигрыш: "
                 f"**+{profit} {CURRENCY_SYMBOL}**\n\n"
                 f"Баланс: "
                 f"**{new_balance} {CURRENCY_SYMBOL}**"
-            ),
-            view=None
-        )
+            )
 
-        self.stop()
+            self.processing = False
+            self.stop()
+
+            await interaction.edit_original_response(
+                content=content,
+                view=result_view
+            )
+
+        except Exception as error:
+            self.processing = False
+
+            print(
+                "[SLOTS ERROR]",
+                type(error).__name__,
+                str(error)
+            )
+
+            traceback.print_exception(
+                type(error),
+                error,
+                error.__traceback__
+            )
+
+            try:
+                await interaction.edit_original_response(
+                    content=(
+                        "## 🎰 Слоты\n\n"
+                        "Произошла ошибка во время игры."
+                    ),
+                    view=None
+                )
+
+            except Exception as response_error:
+                print(
+                    "[SLOTS RESPONSE ERROR]",
+                    repr(response_error)
+                )

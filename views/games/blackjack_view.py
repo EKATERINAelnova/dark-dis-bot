@@ -12,6 +12,8 @@ from services.casino import (
     place_bet
 )
 
+from .result_casino_view import CasinoResultView
+
 
 SUITS = [
     "♠️",
