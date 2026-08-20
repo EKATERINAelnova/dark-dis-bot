@@ -12,10 +12,12 @@ from database.member_stats import (
     get_member_stats,
     get_member_rank
 )
-from config.leveling import (
+from utils.leveling import (
     level_from_xp,
     xp_to_next_level
 )
+
+from views.leaderboard_view import LeaderboardView
 
 class General(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -233,6 +235,35 @@ class General(commands.Cog):
         )
 
         view.message = await interaction.original_response()
+
+    @app_commands.command(
+        name="leaderboard",
+        description="Посмотреть рейтинг участников сада"
+    )
+    async def leaderboard(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "Эта команда доступна только на сервере.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer()
+
+        view = LeaderboardView(
+            guild=interaction.guild,
+            player_id=interaction.user.id,
+        )
+
+        embed = await view.build_embed()
+
+        await interaction.followup.send(
+            embed=embed,
+            view=view,
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(General(bot))
