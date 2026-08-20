@@ -43,6 +43,9 @@ class BotClient(commands.Bot):
             "cogs.welcome.banner"
         )
         await self.load_extension(
+            "cogs.welcome.welcome"
+        )
+        await self.load_extension(
             "cogs.moderation.economy_admin"
         )
 
