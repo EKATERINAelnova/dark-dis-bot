@@ -1112,14 +1112,18 @@ class BlackjackView(BlackjackBaseView):
                 view=self
             )
 
-            await interaction.followup.send(
-                (
-                    "Недостаточно средств для удвоения.\n"
-                    f"Нужно ещё: "
-                    f"**{original_bet} "
-                    f"{CURRENCY_SYMBOL}**"
+            embed = error_embed(
+                title="Удвоение недоступно",
+                description=(
+                    "Баланс изменился с начала партии.\n\n"
+                    f"Для удвоения нужно ещё "
+                    f"**{original_bet} {CURRENCY_SYMBOL}**."
                 ),
-                ephemeral=True
+            )
+
+            await interaction.followup.send(
+                embed=embed,
+                ephemeral=True,
             )
 
             return
@@ -1189,16 +1193,17 @@ class BlackjackView(BlackjackBaseView):
                 + reason
             )
 
-            content, result_view = await self.build_result(
+            embed, result_view = await self.build_result(
                 result=result,
-                reason=reason
+                reason=reason,
             )
 
             self.processing = False
 
             message = await self.message.edit(
-                content=content,
-                view=result_view
+                content=None,
+                embed=embed,
+                view=result_view,
             )
 
             result_view.message = message
