@@ -320,11 +320,13 @@ class RouletteView(discord.ui.View):
             self.stop()
 
             # Только потом устанавливаем новую View.
-            await interaction.edit_original_response(
+            message = await interaction.edit_original_response(
                 content=None,
                 embed=embed,
                 view=result_view,
             )
+
+            result_view.bind_message(message)
 
         except Exception as error:
             self.processing = False

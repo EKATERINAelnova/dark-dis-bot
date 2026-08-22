@@ -485,23 +485,24 @@ class CasinoResultView(discord.ui.View):
             error.__traceback__
         )
 
+        embed = error_embed(
+            title="Ошибка казино",
+            description=(
+                "Во время перехода произошла ошибка.\n"
+                "Попробуй открыть казино заново."
+            ),
+        )
+
         try:
             if interaction.response.is_done():
                 await interaction.followup.send(
-                    (
-                        "Произошла ошибка казино.\n"
-                        "Попробуйте открыть казино заново."
-                    ),
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
-
             else:
                 await interaction.response.send_message(
-                    (
-                        "Произошла ошибка казино.\n"
-                        "Попробуйте открыть казино заново."
-                    ),
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
 
         except Exception as response_error:
