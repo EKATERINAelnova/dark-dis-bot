@@ -6,6 +6,13 @@ import discord
 
 from config.economy import CURRENCY_SYMBOL
 from services.casino import payout
+from utils.embeds import (
+    casino_embed,
+    success_embed,
+    warning_embed,
+    error_embed,
+)
+
 from .result_casino_view import CasinoResultView
 
 
@@ -18,7 +25,7 @@ SYMBOLS = {
     "🍎": 28,
     "🌹": 18,
     "💎": 12,
-    "🐍": 7
+    "🐍": 7,
 }
 
 
@@ -27,7 +34,7 @@ PAYOUTS = {
     "🍎": 3,
     "🌹": 5,
     "💎": 10,
-    "🐍": 20
+    "🐍": 20,
 }
 
 
@@ -50,7 +57,7 @@ class SlotsView(discord.ui.View):
         player_id: int,
         guild_id: int,
         bet: int,
-        balance_after_bet: int
+        balance_after_bet: int,
     ):
         super().__init__(timeout=60)
 
@@ -80,7 +87,7 @@ class SlotsView(discord.ui.View):
         return (
             secrets.choice(SYMBOL_POOL),
             secrets.choice(SYMBOL_POOL),
-            secrets.choice(SYMBOL_POOL)
+            secrets.choice(SYMBOL_POOL),
         )
 
     # =========================================================
@@ -89,7 +96,7 @@ class SlotsView(discord.ui.View):
 
     @staticmethod
     def get_multiplier(
-        result: tuple[str, str, str]
+        result: tuple[str, str, str],
     ) -> int:
         """
         Определяет коэффициент выигрыша.
@@ -111,7 +118,7 @@ class SlotsView(discord.ui.View):
 
     @staticmethod
     def format_result(
-        result: tuple[str, str, str]
+        result: tuple[str, str, str],
     ) -> str:
         """
         Например:
@@ -122,12 +129,160 @@ class SlotsView(discord.ui.View):
         return "   ".join(result)
 
     # =========================================================
+    # EMBED АНИМАЦИИ
+    # =========================================================
+
+    def build_spin_embed(
+        self,
+        result: tuple[str, str, str],
+    ) -> discord.Embed:
+        """
+        Создаёт промежуточный экран
+        вращения барабанов.
+        """
+
+        embed = casino_embed(
+            title="🎰 Слоты",
+            description=(
+                "Барабаны вращаются..."
+            ),
+        )
+
+        embed.add_field(
+            name="Ставка",
+            value=(
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="Барабаны",
+            value=(
+                f"## "
+                f"{self.format_result(result)}"
+            ),
+            inline=False,
+        )
+
+        return embed
+
+    # =========================================================
+    # EMBED ПРОИГРЫША
+    # =========================================================
+
+    def build_loss_embed(
+        self,
+        result: tuple[str, str, str],
+    ) -> discord.Embed:
+        """
+        Создаёт итоговый экран проигрыша.
+        """
+
+        embed = warning_embed(
+            title="🎰 Слоты · Проигрыш",
+            description=(
+                f"## "
+                f"{self.format_result(result)}"
+            ),
+        )
+
+        embed.add_field(
+            name="Ставка",
+            value=(
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Потеряно",
+            value=(
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Баланс",
+            value=(
+                f"**{self.balance_after_bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=False,
+        )
+
+        return embed
+
+    # =========================================================
+    # EMBED ПОБЕДЫ
+    # =========================================================
+
+    def build_win_embed(
+        self,
+        result: tuple[str, str, str],
+        multiplier: int,
+        payout_amount: int,
+        profit: int,
+        new_balance: int,
+    ) -> discord.Embed:
+        """
+        Создаёт итоговый экран победы.
+        """
+
+        embed = success_embed(
+            title="🎰 Слоты · Победа",
+            description=(
+                f"## "
+                f"{self.format_result(result)}"
+            ),
+        )
+
+        embed.add_field(
+            name="Ставка",
+            value=(
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Коэффициент",
+            value=(
+                f"**×{multiplier}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Итог",
+            value=(
+                f"Выплата: "
+                f"**{payout_amount} "
+                f"{CURRENCY_SYMBOL}**\n"
+                f"Чистый выигрыш: "
+                f"**+{profit} "
+                f"{CURRENCY_SYMBOL}**\n"
+                f"Баланс: "
+                f"**{new_balance} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=False,
+        )
+
+        return embed
+
+    # =========================================================
     # ЗАПУСК ИГРЫ
     # =========================================================
 
     async def play(
         self,
-        interaction: discord.Interaction
+        interaction: discord.Interaction,
     ):
         """
         Полный цикл слотов:
@@ -154,16 +309,14 @@ class SlotsView(discord.ui.View):
             for _ in range(3):
                 animation_result = self.spin()
 
+                embed = self.build_spin_embed(
+                    animation_result
+                )
+
                 await interaction.edit_original_response(
-                    content=(
-                        "## 🎰 Слоты\n\n"
-                        f"Ваша ставка: "
-                        f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                        "### Крутим...\n\n"
-                        f"## "
-                        f"{self.format_result(animation_result)}"
-                    ),
-                    view=None
+                    content=None,
+                    embed=embed,
+                    view=None,
                 )
 
                 await asyncio.sleep(0.7)
@@ -189,31 +342,33 @@ class SlotsView(discord.ui.View):
                     player_id=self.player_id,
                     guild_id=self.guild_id,
                     game="slots",
-                    bet=self.bet
+                    bet=self.bet,
                 )
 
-                content = (
-                    "## 🎰 Слоты\n\n"
-                    f"Ваша ставка: "
-                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    f"## "
-                    f"{self.format_result(result)}\n\n"
-                    "### Проигрыш\n"
-                    f"Потеряно: "
-                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    f"Баланс: "
-                    f"**{self.balance_after_bet} "
-                    f"{CURRENCY_SYMBOL}**"
+                embed = self.build_loss_embed(
+                    result
                 )
 
-                # Сначала останавливаем старую View.
                 self.processing = False
+
+                # Сначала останавливаем
+                # старую игровую View.
                 self.stop()
 
-                # После этого ставим новую ResultView.
-                await interaction.edit_original_response(
-                    content=content,
-                    view=result_view
+                # Затем устанавливаем ResultView.
+                message = (
+                    await interaction.edit_original_response(
+                        content=None,
+                        embed=embed,
+                        view=result_view,
+                    )
+                )
+
+                # Привязываем сообщение,
+                # чтобы timeout мог
+                # визуально отключить кнопки.
+                result_view.bind_message(
+                    message
                 )
 
                 return
@@ -236,50 +391,55 @@ class SlotsView(discord.ui.View):
                     f"{result[0]}"
                     f"{result[1]}"
                     f"{result[2]}"
-                )
+                ),
             )
 
-            # Чистая прибыль.
-            #
-            # Например:
+            # Чистая прибыль:
             #
             # ставка 50
             # payout 150
-            #
-            # прибыль = +100
+            # profit 100
             profit = (
-                payout_amount - self.bet
+                payout_amount
+                - self.bet
             )
 
             result_view = CasinoResultView(
                 player_id=self.player_id,
                 guild_id=self.guild_id,
                 game="slots",
-                bet=self.bet
+                bet=self.bet,
             )
 
-            content = (
-                "## 🎰 Слоты\n\n"
-                f"Ваша ставка: "
-                f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                f"## "
-                f"{self.format_result(result)}\n\n"
-                "### Победа\n"
-                f"Коэффициент: "
-                f"**×{multiplier}**\n"
-                f"Выигрыш: "
-                f"**+{profit} {CURRENCY_SYMBOL}**\n\n"
-                f"Баланс: "
-                f"**{new_balance} {CURRENCY_SYMBOL}**"
+            embed = self.build_win_embed(
+                result=result,
+                multiplier=multiplier,
+                payout_amount=payout_amount,
+                profit=profit,
+                new_balance=new_balance,
             )
 
             self.processing = False
+
+            # Останавливаем старую View
+            # до установки ResultView.
             self.stop()
 
-            await interaction.edit_original_response(
-                content=content,
-                view=result_view
+            message = (
+                await interaction.edit_original_response(
+                    content=None,
+                    embed=embed,
+                    view=result_view,
+                )
             )
+
+            result_view.bind_message(
+                message
+            )
+
+        # =====================================================
+        # ERROR
+        # =====================================================
 
         except Exception as error:
             self.processing = False
@@ -287,26 +447,33 @@ class SlotsView(discord.ui.View):
             print(
                 "[SLOTS ERROR]",
                 type(error).__name__,
-                str(error)
+                str(error),
             )
 
             traceback.print_exception(
                 type(error),
                 error,
-                error.__traceback__
+                error.__traceback__,
+            )
+
+            embed = error_embed(
+                title="Ошибка слотов",
+                description=(
+                    "Во время вращения "
+                    "произошла ошибка.\n"
+                    "Попробуй открыть казино заново."
+                ),
             )
 
             try:
                 await interaction.edit_original_response(
-                    content=(
-                        "## 🎰 Слоты\n\n"
-                        "Произошла ошибка во время игры."
-                    ),
-                    view=None
+                    content=None,
+                    embed=embed,
+                    view=None,
                 )
 
             except Exception as response_error:
                 print(
                     "[SLOTS RESPONSE ERROR]",
-                    repr(response_error)
+                    repr(response_error),
                 )

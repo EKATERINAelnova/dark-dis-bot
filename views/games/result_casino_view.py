@@ -11,6 +11,7 @@ from utils.embeds import (
     error_embed,
 )
 
+
 GAME_NAMES = {
     "roulette": "🎡 Рулетка",
     "slots": "🎰 Слоты",
@@ -23,7 +24,7 @@ class CasinoResultView(discord.ui.View):
         player_id: int,
         guild_id: int,
         game: str,
-        bet: int
+        bet: int,
     ):
         super().__init__(timeout=180)
 
@@ -34,22 +35,25 @@ class CasinoResultView(discord.ui.View):
 
         self.processing = False
 
-        # Сохраняем сообщение, к которому привязана View.
-        # Нужно для визуального отключения кнопок по timeout.
+        # Сообщение с ResultView.
+        # Нужно, чтобы после timeout
+        # визуально отключить кнопки.
         self.message: discord.InteractionMessage | None = None
 
     # =========================================================
-    # СООБЩЕНИЕ
+    # MESSAGE
     # =========================================================
 
     def bind_message(
         self,
-        message: discord.InteractionMessage
+        message: discord.InteractionMessage,
     ):
         """
-        Сохраняет сообщение, на котором находится ResultView.
+        Привязывает ResultView
+        к Discord-сообщению.
 
-        Нужно для on_timeout().
+        Вызывать после установки View
+        через edit_original_response().
         """
 
         self.message = message
@@ -60,7 +64,7 @@ class CasinoResultView(discord.ui.View):
 
     async def interaction_check(
         self,
-        interaction: discord.Interaction
+        interaction: discord.Interaction,
     ) -> bool:
         """
         Не позволяет другим пользователям
@@ -70,28 +74,35 @@ class CasinoResultView(discord.ui.View):
         if interaction.user.id != self.player_id:
             embed = error_embed(
                 title="Чужая игра",
-                description="Эта партия принадлежит другому игроку.",
+                description=(
+                    "Эта партия принадлежит "
+                    "другому игроку."
+                ),
             )
 
             await interaction.response.send_message(
                 embed=embed,
                 ephemeral=True,
             )
+
             return False
 
         return True
 
     # =========================================================
-    # КНОПКИ
+    # BUTTONS
     # =========================================================
 
     def disable_all_buttons(self):
         """
-        Выключает все кнопки ResultView.
+        Отключает все кнопки ResultView.
         """
 
         for item in self.children:
-            if isinstance(item, discord.ui.Button):
+            if isinstance(
+                item,
+                discord.ui.Button,
+            ):
                 item.disabled = True
 
     # =========================================================
@@ -100,26 +111,29 @@ class CasinoResultView(discord.ui.View):
 
     async def begin_transition(
         self,
-        interaction: discord.Interaction
+        interaction: discord.Interaction,
     ) -> bool:
         """
         Безопасно начинает переход
         с ResultView на другой экран.
 
-        Порядок важен:
+        Порядок:
 
-        1. подтверждаем interaction;
-        2. выключаем текущие кнопки;
-        3. обновляем сообщение;
-        4. останавливаем старую View;
-        5. callback устанавливает новую View.
+        1. блокируем повторный клик;
+        2. подтверждаем interaction;
+        3. отключаем текущие кнопки;
+        4. обновляем сообщение;
+        5. останавливаем старую View.
         """
 
         if self.processing:
             if not interaction.response.is_done():
                 embed = warning_embed(
                     title="Действие уже выполняется",
-                    description="Предыдущий переход ещё не завершён.",
+                    description=(
+                        "Предыдущий переход "
+                        "ещё не завершён."
+                    ),
                 )
 
                 await interaction.response.send_message(
@@ -131,20 +145,21 @@ class CasinoResultView(discord.ui.View):
 
         self.processing = True
 
-        # Сразу отвечаем Discord,
-        # чтобы interaction не протух.
+        # Сразу подтверждаем interaction,
+        # чтобы Discord не счёл его протухшим.
         await interaction.response.defer()
 
-        # Визуально отключаем старые кнопки.
+        # Выключаем старые кнопки.
         self.disable_all_buttons()
 
-        self.message = await interaction.edit_original_response(
-            view=self
+        self.message = (
+            await interaction.edit_original_response(
+                view=self,
+            )
         )
 
-        # Критично:
-        # старая View должна быть остановлена
-        # до установки новой.
+        # Старую View больше
+        # нельзя использовать.
         self.stop()
 
         return True
@@ -156,7 +171,7 @@ class CasinoResultView(discord.ui.View):
     async def open_bet_selection(
         self,
         interaction: discord.Interaction,
-        current_balance: int
+        current_balance: int,
     ):
         """
         Возвращает пользователя
@@ -169,7 +184,7 @@ class CasinoResultView(discord.ui.View):
             player_id=self.player_id,
             guild_id=self.guild_id,
             game=self.game,
-            balance=current_balance
+            balance=current_balance,
         )
 
         game_name = GAME_NAMES[self.game]
@@ -178,7 +193,8 @@ class CasinoResultView(discord.ui.View):
             title=game_name,
             description=(
                 f"Баланс: "
-                f"**{current_balance} {CURRENCY_SYMBOL}**\n\n"
+                f"**{current_balance} "
+                f"{CURRENCY_SYMBOL}**\n\n"
                 "Выбери ставку:"
             ),
         )
@@ -197,12 +213,12 @@ class CasinoResultView(discord.ui.View):
         label="Ещё раз",
         emoji="🔁",
         style=discord.ButtonStyle.success,
-        custom_id="casino_play_again"
+        custom_id="casino_play_again",
     )
     async def play_again(
         self,
         interaction: discord.Interaction,
-        button: discord.ui.Button
+        button: discord.ui.Button,
     ):
         if not await self.begin_transition(
             interaction
@@ -216,26 +232,26 @@ class CasinoResultView(discord.ui.View):
         if self.game == "slots":
             from .slots_view import SlotsView
 
-            # Слоты запускаются сразу,
-            # поэтому ставку списываем здесь.
+            # В Slots ставка списывается
+            # до начала вращения барабанов.
             new_balance = await place_bet(
                 guild_id=self.guild_id,
                 user_id=self.player_id,
                 bet=self.bet,
-                game="slots"
+                game="slots",
             )
 
-            # Баланса на предыдущую ставку
-            # больше не хватает.
+            # Баланс мог измениться
+            # после предыдущей партии.
             if new_balance is None:
                 current_balance = await get_balance(
                     guild_id=self.guild_id,
-                    user_id=self.player_id
+                    user_id=self.player_id,
                 )
 
                 await self.open_bet_selection(
                     interaction,
-                    current_balance
+                    current_balance,
                 )
 
                 return
@@ -244,23 +260,22 @@ class CasinoResultView(discord.ui.View):
                 player_id=self.player_id,
                 guild_id=self.guild_id,
                 bet=self.bet,
-                balance_after_bet=new_balance
+                balance_after_bet=new_balance,
             )
 
-            embed = casino_embed(
-                title="🎡 Рулетка",
-                description=(
-                    "Колесо ждёт нового выбора.\n\n"
-                    f"Ставка: "
-                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    "Выбери сектор:"
-                ),
-            )
-
+            # Временно оставляем content,
+            # пока сам SlotsView ещё не
+            # переведён на embeds.
             await interaction.edit_original_response(
-                content=None,
-                embed=embed,
-                view=roulette_view,
+                content=(
+                    "## 🎰 Слоты\n\n"
+                    f"Ставка: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
+                    "Запускаем барабаны..."
+                ),
+                embed=None,
+                view=None,
             )
 
             await slots_view.play(
@@ -278,18 +293,18 @@ class CasinoResultView(discord.ui.View):
 
             current_balance = await get_balance(
                 guild_id=self.guild_id,
-                user_id=self.player_id
+                user_id=self.player_id,
             )
 
-            # В рулетке ставка ещё не списывается.
-            # Сначала пользователь должен выбрать сектор.
+            # В Roulette ставка списывается
+            # только после выбора сектора.
             #
-            # Но заранее проверяем,
-            # способен ли он вообще повторить эту ставку.
+            # Здесь лишь проверяем,
+            # хватает ли денег повторить ставку.
             if current_balance < self.bet:
                 await self.open_bet_selection(
                     interaction,
-                    current_balance
+                    current_balance,
                 )
 
                 return
@@ -297,7 +312,7 @@ class CasinoResultView(discord.ui.View):
             roulette_view = RouletteView(
                 player_id=self.player_id,
                 guild_id=self.guild_id,
-                bet=self.bet
+                bet=self.bet,
             )
 
             embed = casino_embed(
@@ -305,7 +320,8 @@ class CasinoResultView(discord.ui.View):
                 description=(
                     "Колесо ждёт нового выбора.\n\n"
                     f"Ставка: "
-                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n\n"
                     "Выбери сектор:"
                 ),
             )
@@ -319,7 +335,8 @@ class CasinoResultView(discord.ui.View):
             return
 
         raise ValueError(
-            f"Неизвестная игра казино: {self.game}"
+            f"Неизвестная игра казино: "
+            f"{self.game}"
         )
 
     # =========================================================
@@ -330,12 +347,12 @@ class CasinoResultView(discord.ui.View):
         label="Изменить ставку",
         emoji="💰",
         style=discord.ButtonStyle.primary,
-        custom_id="casino_change_bet"
+        custom_id="casino_change_bet",
     )
     async def change_bet(
         self,
         interaction: discord.Interaction,
-        button: discord.ui.Button
+        button: discord.ui.Button,
     ):
         if not await self.begin_transition(
             interaction
@@ -344,12 +361,12 @@ class CasinoResultView(discord.ui.View):
 
         current_balance = await get_balance(
             guild_id=self.guild_id,
-            user_id=self.player_id
+            user_id=self.player_id,
         )
 
         await self.open_bet_selection(
             interaction,
-            current_balance
+            current_balance,
         )
 
     # =========================================================
@@ -360,12 +377,12 @@ class CasinoResultView(discord.ui.View):
         label="В казино",
         emoji="🎰",
         style=discord.ButtonStyle.secondary,
-        custom_id="casino_back"
+        custom_id="casino_back",
     )
     async def back_to_casino(
         self,
         interaction: discord.Interaction,
-        button: discord.ui.Button
+        button: discord.ui.Button,
     ):
         if not await self.begin_transition(
             interaction
@@ -381,7 +398,8 @@ class CasinoResultView(discord.ui.View):
         embed = casino_embed(
             title="🎰 LOST EDEN CASINO",
             description=(
-                "Добро пожаловать за столы сада.\n\n"
+                "Добро пожаловать "
+                "за столы сада.\n\n"
                 "Выбери игру:"
             ),
         )
@@ -398,15 +416,14 @@ class CasinoResultView(discord.ui.View):
 
     async def on_timeout(self):
         """
-        Через 180 секунд ResultView перестаёт быть активной.
+        После 180 секунд ResultView
+        перестаёт быть активной.
 
-        Кнопки визуально отключаются,
-        чтобы пользователь не нажимал
-        на уже мёртвую View.
+        Кнопки визуально отключаются.
         """
 
-        # Если уже начался переход,
-        # ничего дополнительно делать не нужно.
+        # Если уже идёт переход,
+        # ничего менять не нужно.
         if self.processing:
             return
 
@@ -414,15 +431,15 @@ class CasinoResultView(discord.ui.View):
 
         self.disable_all_buttons()
 
-        # Если сообщение почему-то не было сохранено,
-        # просто завершаем View.
+        # Без сохранённого сообщения
+        # визуально обновить кнопки нельзя.
         if self.message is None:
             self.stop()
             return
 
         try:
             await self.message.edit(
-                view=self
+                view=self,
             )
 
         except discord.NotFound:
@@ -432,26 +449,26 @@ class CasinoResultView(discord.ui.View):
         except discord.Forbidden as error:
             print(
                 "[CASINO RESULT TIMEOUT FORBIDDEN]",
-                repr(error)
+                repr(error),
             )
 
         except discord.HTTPException as error:
             print(
                 "[CASINO RESULT TIMEOUT HTTP ERROR]",
-                repr(error)
+                repr(error),
             )
 
         except Exception as error:
             print(
                 "[CASINO RESULT TIMEOUT ERROR]",
                 type(error).__name__,
-                str(error)
+                str(error),
             )
 
             traceback.print_exception(
                 type(error),
                 error,
-                error.__traceback__
+                error.__traceback__,
             )
 
         finally:
@@ -465,10 +482,10 @@ class CasinoResultView(discord.ui.View):
         self,
         interaction: discord.Interaction,
         error: Exception,
-        item: discord.ui.Item
+        item: discord.ui.Item,
     ):
         """
-        Ошибки callback больше не пропадают молча.
+        Ошибки callback не пропадают молча.
         """
 
         self.processing = False
@@ -476,19 +493,20 @@ class CasinoResultView(discord.ui.View):
         print(
             "[CASINO RESULT VIEW ERROR]",
             type(error).__name__,
-            str(error)
+            str(error),
         )
 
         traceback.print_exception(
             type(error),
             error,
-            error.__traceback__
+            error.__traceback__,
         )
 
         embed = error_embed(
             title="Ошибка казино",
             description=(
-                "Во время перехода произошла ошибка.\n"
+                "Во время перехода "
+                "произошла ошибка.\n"
                 "Попробуй открыть казино заново."
             ),
         )
@@ -499,6 +517,7 @@ class CasinoResultView(discord.ui.View):
                     embed=embed,
                     ephemeral=True,
                 )
+
             else:
                 await interaction.response.send_message(
                     embed=embed,
@@ -508,5 +527,5 @@ class CasinoResultView(discord.ui.View):
         except Exception as response_error:
             print(
                 "[CASINO RESULT RESPONSE ERROR]",
-                repr(response_error)
+                repr(response_error),
             )
