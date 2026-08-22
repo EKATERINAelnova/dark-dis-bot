@@ -1,5 +1,10 @@
 import discord
 import random
+from utils.embeds import (
+    eden_embed,
+    success_embed,
+    error_embed,
+)
 
 class CoinView(discord.ui.View):
     def __init__(self, player_id: int):
@@ -11,8 +16,13 @@ class CoinView(discord.ui.View):
         interaction: discord.Interaction
     ) -> bool:
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая монета",
+                description="Этот бросок принадлежит другому путнику.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоя игра.",
+                embed=embed,
                 ephemeral=True
             )
             return False
@@ -26,15 +36,30 @@ class CoinView(discord.ui.View):
     ):
         result = random.choice(["Орёл", "Решка"])
         if choice == result:
-            text = f"Выпал {result}. Ты выиграл!"
+            embed = success_embed(
+                title="🪙 Монета благосклонна",
+                description=(
+                    f"Выпало: **{result}**\n"
+                    f"Ты выбрал: **{choice}**\n\n"
+                    "**Победа.**"
+                ),
+            )
         else:
-            text = f"Выпал {result}. Ты проиграл."
+            embed = eden_embed(
+                title="🪙 Монета решила иначе",
+                description=(
+                    f"Выпало: **{result}**\n"
+                    f"Ты выбрал: **{choice}**\n\n"
+                    "*В этот раз сад выбрал не тебя.*"
+                ),
+            )
         for item in self.children:
             if isinstance(item, discord.ui.Button):
                 item.disabled = True
         await interaction.response.edit_message(
-            content=text,
-            view=self
+            content=None,
+            embed=embed,
+            view=self,
         )
 
     @discord.ui.button(

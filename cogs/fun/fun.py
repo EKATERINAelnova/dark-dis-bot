@@ -5,6 +5,10 @@ from discord import app_commands
 from discord.ext import commands
 from views.coin_view import CoinView
 from views.casino_view import CasinoView
+from utils.embeds import (
+    eden_embed,
+    casino_embed,
+)
 
 class Fun(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -21,7 +25,19 @@ class Fun(commands.Cog):
         max_value: app_commands.Range[int, 1, 1000]
     ):
         r = random.randint(1, max_value)
-        await interaction.response.send_message(f"Выпало: {r}")
+
+        embed = eden_embed(
+            title="🎲 Бросок судьбы",
+            description=(
+                "Сад выбрал число...\n\n"
+                f"## {r}\n"
+                f"*из {max_value}*"
+            ),
+        )
+
+        await interaction.response.send_message(
+            embed=embed
+        )
 
     @app_commands.command(
         name="coin",
@@ -30,11 +46,18 @@ class Fun(commands.Cog):
     async def coin(self, interaction: discord.Interaction):
         view = CoinView(interaction.user.id)
 
+        embed = eden_embed(
+        title="Монета Эдема",
+        description=(
+            "Выбери сторону монеты.\n\n"
+            "*Иногда судьба решается одним броском.*"
+        ),
+        )
+
         await interaction.response.send_message(
-            "Выбери сторону:",
+            embed=embed,
             view=view
         )
-        random.choice(["Орёл", "Решка"])
 
     @app_commands.command(
         name="casino",
@@ -48,10 +71,17 @@ class Fun(commands.Cog):
             interaction.user.id
         )
 
+        embed = casino_embed(
+            title="🎰 LOST EDEN CASINO",
+            description=(
+                "Добро пожаловать за столы сада.\n\n"
+                "Выбери игру:"
+            ),
+        )
+
         await interaction.response.send_message(
-            "🎰 **LOST EDEN CASINO**\n\n"
-            "Выбери игру:",
-            view=view
+            embed=embed,
+            view=view,
         )
 
 async def setup(bot: commands.Bot):

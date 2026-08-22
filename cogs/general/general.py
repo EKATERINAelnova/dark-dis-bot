@@ -16,7 +16,7 @@ from utils.leveling import (
     level_from_xp,
     xp_to_next_level
 )
-
+from utils.embeds import eden_embed
 from views.leaderboard_view import LeaderboardView
 
 class General(commands.Cog):
@@ -67,14 +67,24 @@ class General(commands.Cog):
         )
 
     @app_commands.command(
-    name="ping",
-    description="Проверить работу бота"
-    )
+        name="ping",
+        description="Проверить работу бота"
+        )
     async def ping(
-        self,
-        interaction: discord.Interaction
-    ):
-        await interaction.response.send_message("Pong!")
+            self,
+            interaction: discord.Interaction
+        ):
+        embed = eden_embed(
+        title="🌿 Связь с садом",
+        description=(
+                "Сад отвечает.\n"
+                f"Задержка: `{round(self.bot.latency * 1000)} ms`"
+            )
+        )
+
+        await interaction.response.send_message(
+            embed=embed
+        )
 
     @app_commands.command(
         name="profile",

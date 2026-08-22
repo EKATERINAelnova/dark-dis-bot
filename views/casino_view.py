@@ -3,6 +3,10 @@ import discord
 from database.economy import get_balance
 from .bet_view import BetView
 from config.economy import CURRENCY_SYMBOL
+from utils.embeds import (
+    casino_embed,
+    error_embed,
+)
 
 
 class CasinoView(discord.ui.View):
@@ -20,9 +24,14 @@ class CasinoView(discord.ui.View):
         interaction: discord.Interaction
     ) -> bool:
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужой стол",
+                description="Эта игровая сессия принадлежит другому путнику.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоё казино.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -37,9 +46,14 @@ class CasinoView(discord.ui.View):
         # Если игру уже выбрали,
         # повторно выбрать другую нельзя.
         if self.selected_game is not None:
+            embed = error_embed(
+                title="Игра уже выбрана",
+                description="Сначала закончи текущий выбор.",
+            )
+
             await interaction.response.send_message(
-                "Игра уже выбрана.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return
 
@@ -60,14 +74,17 @@ class CasinoView(discord.ui.View):
             game=game,
             balance=balance
         )
-
-        await interaction.response.edit_message(
-            content=(
-                f"## {game_name}\n\n"
+        embed = casino_embed(
+            title=game_name,
+            description=(
                 f"Баланс: **{balance} {CURRENCY_SYMBOL}**\n\n"
-                "Выбери ставку:"
+                "Выбери размер ставки."
             ),
-            view=bet_view
+        )
+        await interaction.response.edit_message(
+            content=None,
+            embed=embed,
+            view=bet_view,
         )
 
         # CasinoView больше не нужен,

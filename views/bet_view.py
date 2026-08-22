@@ -7,7 +7,10 @@ from .games.roulette_view import RouletteView
 from .games.blackjack_view import BlackjackView
 from .games.slots_view import SlotsView
 from services.casino import place_bet
-
+from utils.embeds import (
+    casino_embed,
+    error_embed,
+)
 
 GAME_NAMES = {
     "roulette": "🎡 Рулетка",
@@ -93,13 +96,17 @@ class BetView(discord.ui.View):
         """
 
         if bet > self.balance:
-            await interaction.response.send_message(
-                (
-                    "Недостаточно средств.\n"
-                    f"Баланс: "
-                    f"**{self.balance} {CURRENCY_SYMBOL}**"
+            embed = error_embed(
+                title="Недостаточно средств",
+                description=(
+                    f"Для этой ставки не хватает средств.\n\n"
+                    f"Баланс: **{self.balance} {CURRENCY_SYMBOL}**"
                 ),
-                ephemeral=True
+            )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
             )
             return
 
@@ -112,19 +119,37 @@ class BetView(discord.ui.View):
 
         game_name = GAME_NAMES[self.game]
 
+        embed = casino_embed(
+            title=game_name,
+            description="Проверь ставку перед началом игры.",
+        )
+
+        embed.add_field(
+            name="Баланс",
+            value=f"**{self.balance} {CURRENCY_SYMBOL}**",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Ставка",
+            value=f"**{bet} {CURRENCY_SYMBOL}**",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Подтверждение",
+            value="После начала игры ставка будет зафиксирована.",
+            inline=False,
+        )
+
         await interaction.response.edit_message(
-            content=(
-                f"## {game_name}\n\n"
-                f"Баланс: "
-                f"**{self.balance} {CURRENCY_SYMBOL}**\n\n"
-                f"Ваша ставка: "
-                f"**{bet} {CURRENCY_SYMBOL}**\n\n"
-                "Подтвердить ставку?"
-            ),
-            view=confirm_view
+            content=None,
+            embed=embed,
+            view=confirm_view,
         )
 
         self.stop()
+
 
     @discord.ui.button(
         label="10",
@@ -223,9 +248,14 @@ class BetConfirmView(discord.ui.View):
         interaction: discord.Interaction
     ) -> bool:
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая игра",
+                description="Эта ставка принадлежит другому игроку.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоя игра.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
