@@ -11,6 +11,12 @@ from services.casino import (
     double_bet,
     place_bet
 )
+from utils.embeds import (
+    casino_embed,
+    success_embed,
+    warning_embed,
+    error_embed,
+)
 
 from .result_casino_view import CasinoResultView
 
@@ -500,10 +506,11 @@ class BlackjackView(BlackjackBaseView):
     # UI
     # =========================================================
 
-    def render_table(
+    def fill_table_embed(
         self,
-        show_dealer: bool = False
-    ) -> str:
+        embed: discord.Embed,
+        show_dealer: bool = False,
+    ) -> discord.Embed:
         player_cards = self.format_hand(
             self.player_hand
         )
@@ -531,20 +538,53 @@ class BlackjackView(BlackjackBaseView):
 
             dealer_text = (
                 f"{first_card[0]}"
-                f"{first_card[1]}  🂠"
+                f"{first_card[1]}  🂠\n"
+                "*Одна карта скрыта*"
             )
 
-        return (
-            "## 🃏 Blackjack\n\n"
-            f"Ваша ставка: "
-            f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-            "### Дилер\n"
-            f"{dealer_text}\n\n"
-            "### Вы\n"
-            f"{player_cards}\n"
-            f"Счёт: **{player_value}**"
+        embed.add_field(
+            name="Ставка",
+            value=(
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=False,
         )
 
+        embed.add_field(
+            name="Дилер",
+            value=dealer_text,
+            inline=False,
+        )
+
+        embed.add_field(
+            name="Вы",
+            value=(
+                f"{player_cards}\n"
+                f"Счёт: **{player_value}**"
+            ),
+            inline=False,
+        )
+
+        return embed
+
+
+    def build_table_embed(
+        self,
+        show_dealer: bool = False,
+    ) -> discord.Embed:
+        embed = casino_embed(
+            title="🃏 Blackjack",
+            description=(
+                "Набери больше дилера, "
+                "но не переходи за **21**."
+            ),
+        )
+
+        return self.fill_table_embed(
+            embed,
+            show_dealer=show_dealer,
+        )
     def update_buttons(self):
         for item in self.children:
             if not isinstance(
@@ -629,8 +669,9 @@ class BlackjackView(BlackjackBaseView):
         self.update_buttons()
 
         self.message = await interaction.edit_original_response(
-            content=self.render_table(),
-            view=self
+            content=None,
+            embed=self.build_table_embed(),
+            view=self,
         )
 
     # =========================================================
@@ -711,11 +752,11 @@ class BlackjackView(BlackjackBaseView):
     async def build_result(
         self,
         result: str,
-        reason: str
+        reason: str,
     ):
         """
         Выполняет финансовую часть
-        и формирует финальный текст.
+        и создаёт итоговый embed.
         """
 
         self.finished = True
@@ -723,7 +764,7 @@ class BlackjackView(BlackjackBaseView):
         result_view = BlackjackResultView(
             player_id=self.player_id,
             guild_id=self.guild_id,
-            bet=self.base_bet
+            bet=self.base_bet,
         )
 
         # =====================================================
@@ -733,28 +774,36 @@ class BlackjackView(BlackjackBaseView):
         if result == "loss":
             current_balance = await get_balance(
                 guild_id=self.guild_id,
-                user_id=self.player_id
+                user_id=self.player_id,
             )
 
-            content = (
-                self.render_table(
-                    show_dealer=True
-                )
-                + "\n\n"
-                + "### Проигрыш\n"
-                + f"{reason}\n\n"
-                + f"Потеряно: "
-                + f"**{self.bet} "
-                + f"{CURRENCY_SYMBOL}**\n"
-                + f"Баланс: "
-                + f"**{current_balance} "
-                + f"{CURRENCY_SYMBOL}**"
+            embed = warning_embed(
+                title="🃏 Blackjack · Проигрыш",
+                description=reason,
             )
 
-            return content, result_view
+            self.fill_table_embed(
+                embed,
+                show_dealer=True,
+            )
+
+            embed.add_field(
+                name="Итог",
+                value=(
+                    f"Потеряно: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Баланс: "
+                    f"**{current_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+                inline=False,
+            )
+
+            return embed, result_view
 
         # =====================================================
-        # ОБЫЧНАЯ ПОБЕДА
+        # ПОБЕДА
         # =====================================================
 
         if result == "win":
@@ -765,28 +814,36 @@ class BlackjackView(BlackjackBaseView):
                 user_id=self.player_id,
                 amount=payout_amount,
                 game="blackjack",
-                result="win"
+                result="win",
             )
 
-            content = (
-                self.render_table(
-                    show_dealer=True
-                )
-                + "\n\n"
-                + "### Победа\n"
-                + f"{reason}\n\n"
-                + f"Выигрыш: "
-                + f"**+{self.bet} "
-                + f"{CURRENCY_SYMBOL}**\n"
-                + f"Баланс: "
-                + f"**{new_balance} "
-                + f"{CURRENCY_SYMBOL}**"
+            embed = success_embed(
+                title="🃏 Blackjack · Победа",
+                description=reason,
             )
 
-            return content, result_view
+            self.fill_table_embed(
+                embed,
+                show_dealer=True,
+            )
+
+            embed.add_field(
+                name="Итог",
+                value=(
+                    f"Выигрыш: "
+                    f"**+{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Баланс: "
+                    f"**{new_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+                inline=False,
+            )
+
+            return embed, result_view
 
         # =====================================================
-        # BLACKJACK
+        # НАТУРАЛЬНЫЙ BLACKJACK
         # =====================================================
 
         if result == "blackjack":
@@ -799,7 +856,7 @@ class BlackjackView(BlackjackBaseView):
                 user_id=self.player_id,
                 amount=payout_amount,
                 game="blackjack",
-                result="blackjack"
+                result="blackjack",
             )
 
             profit = (
@@ -807,22 +864,30 @@ class BlackjackView(BlackjackBaseView):
                 - self.bet
             )
 
-            content = (
-                self.render_table(
-                    show_dealer=True
-                )
-                + "\n\n"
-                + "### 🃏 BLACKJACK!\n"
-                + f"{reason}\n\n"
-                + f"Выигрыш: "
-                + f"**+{profit} "
-                + f"{CURRENCY_SYMBOL}**\n"
-                + f"Баланс: "
-                + f"**{new_balance} "
-                + f"{CURRENCY_SYMBOL}**"
+            embed = success_embed(
+                title="🃏 BLACKJACK!",
+                description=reason,
             )
 
-            return content, result_view
+            self.fill_table_embed(
+                embed,
+                show_dealer=True,
+            )
+
+            embed.add_field(
+                name="Выплата 3:2",
+                value=(
+                    f"Выигрыш: "
+                    f"**+{profit} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Баланс: "
+                    f"**{new_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+                inline=False,
+            )
+
+            return embed, result_view
 
         # =====================================================
         # НИЧЬЯ
@@ -834,23 +899,36 @@ class BlackjackView(BlackjackBaseView):
                 user_id=self.player_id,
                 bet=self.bet,
                 game="blackjack",
-                reason="push"
+                reason="push",
             )
 
-            content = (
-                self.render_table(
-                    show_dealer=True
-                )
-                + "\n\n"
-                + "### Ничья\n"
-                + f"{reason}\n"
-                + "Ставка возвращена.\n\n"
-                + f"Баланс: "
-                + f"**{new_balance} "
-                + f"{CURRENCY_SYMBOL}**"
+            embed = warning_embed(
+                title="🃏 Blackjack · Ничья",
+                description=(
+                    f"{reason}\n\n"
+                    "Ставка возвращена."
+                ),
             )
 
-            return content, result_view
+            self.fill_table_embed(
+                embed,
+                show_dealer=True,
+            )
+
+            embed.add_field(
+                name="Итог",
+                value=(
+                    f"Возвращено: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Баланс: "
+                    f"**{new_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+                inline=False,
+            )
+
+            return embed, result_view
 
         raise ValueError(
             f"Неизвестный результат Blackjack: {result}"
@@ -866,9 +944,9 @@ class BlackjackView(BlackjackBaseView):
         Завершает партию через Discord interaction.
         """
 
-        content, result_view = await self.build_result(
+        embed, result_view = await self.build_result(
             result=result,
-            reason=reason
+            reason=reason,
         )
 
         self.processing = False
@@ -878,8 +956,9 @@ class BlackjackView(BlackjackBaseView):
         self.stop()
 
         message = await interaction.edit_original_response(
-            content=content,
-            view=result_view
+            content=None,
+            embed=embed,
+            view=result_view,
         )
 
         result_view.message = message
@@ -933,8 +1012,9 @@ class BlackjackView(BlackjackBaseView):
             return
 
         self.message = await interaction.edit_original_response(
-            content=self.render_table(),
-            view=self
+            content=None,
+            embed=self.build_table_embed(),
+            view=self,
         )
 
         self.processing = False
