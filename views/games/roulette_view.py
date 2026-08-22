@@ -7,7 +7,12 @@ from config.economy import CURRENCY_SYMBOL
 from database.economy import get_balance
 from services.casino import place_bet, payout
 from .result_casino_view import CasinoResultView
-
+from utils.embeds import (
+    casino_embed,
+    success_embed,
+    warning_embed,
+    error_embed,
+)
 
 RED_NUMBERS = {
     1, 3, 5, 7, 9,
@@ -211,27 +216,40 @@ class RouletteView(discord.ui.View):
                     payout_amount - self.bet
                 )
 
-                content = (
-                    "## 🎡 Рулетка\n\n"
-                    f"Колесо остановилось на "
-                    f"**{result_name} {number}**\n\n"
-                    f"Твоя ставка: "
-                    f"**{choice_name}**\n"
-                    f"Размер ставки: "
-                    f"**{self.bet} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    "### Победа\n"
-                    f"Коэффициент: "
-                    f"**×{multiplier}**\n"
-                    f"Выплата: "
-                    f"**{payout_amount} "
-                    f"{CURRENCY_SYMBOL}**\n"
-                    f"Чистый выигрыш: "
-                    f"**+{profit} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    f"Баланс: "
-                    f"**{new_balance} "
-                    f"{CURRENCY_SYMBOL}**"
+                embed = success_embed(
+                    title="🎡 Рулетка · Победа",
+                    description=(
+                        f"Колесо остановилось на "
+                        f"**{result_name} {number}**"
+                    ),
+                )
+
+                embed.add_field(
+                    name="Ставка",
+                    value=(
+                        f"{choice_name}\n"
+                        f"**{self.bet} {CURRENCY_SYMBOL}**"
+                    ),
+                    inline=True,
+                )
+
+                embed.add_field(
+                    name="Коэффициент",
+                    value=f"**×{multiplier}**",
+                    inline=True,
+                )
+
+                embed.add_field(
+                    name="Итог",
+                    value=(
+                        f"Выплата: "
+                        f"**{payout_amount} {CURRENCY_SYMBOL}**\n"
+                        f"Чистый выигрыш: "
+                        f"**+{profit} {CURRENCY_SYMBOL}**\n"
+                        f"Баланс: "
+                        f"**{new_balance} {CURRENCY_SYMBOL}**"
+                    ),
+                    inline=False,
                 )
 
             # =================================================
@@ -239,22 +257,32 @@ class RouletteView(discord.ui.View):
             # =================================================
 
             else:
-                content = (
-                    "## 🎡 Рулетка\n\n"
-                    f"Колесо остановилось на "
-                    f"**{result_name} {number}**\n\n"
-                    f"Твоя ставка: "
-                    f"**{choice_name}**\n"
-                    f"Размер ставки: "
-                    f"**{self.bet} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    "### Проигрыш\n"
-                    f"Потеряно: "
-                    f"**{self.bet} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    f"Баланс: "
-                    f"**{balance_after_bet} "
-                    f"{CURRENCY_SYMBOL}**"
+                embed = warning_embed(
+                    title="🎡 Рулетка · Проигрыш",
+                    description=(
+                        f"Колесо остановилось на "
+                        f"**{result_name} {number}**"
+                    ),
+                )
+
+                embed.add_field(
+                    name="Ставка",
+                    value=(
+                        f"{choice_name}\n"
+                        f"**{self.bet} {CURRENCY_SYMBOL}**"
+                    ),
+                    inline=True,
+                )
+
+                embed.add_field(
+                    name="Итог",
+                    value=(
+                        f"Потеряно: "
+                        f"**{self.bet} {CURRENCY_SYMBOL}**\n"
+                        f"Баланс: "
+                        f"**{balance_after_bet} {CURRENCY_SYMBOL}**"
+                    ),
+                    inline=False,
                 )
 
             # =================================================
@@ -275,8 +303,9 @@ class RouletteView(discord.ui.View):
 
             # Только потом устанавливаем новую View.
             await interaction.edit_original_response(
-                content=content,
-                view=result_view
+                content=None,
+                embed=embed,
+                view=result_view,
             )
 
         except Exception as error:
