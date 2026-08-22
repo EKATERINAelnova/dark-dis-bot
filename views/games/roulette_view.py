@@ -8,7 +8,6 @@ from database.economy import get_balance
 from services.casino import place_bet, payout
 from .result_casino_view import CasinoResultView
 from utils.embeds import (
-    casino_embed,
     success_embed,
     warning_embed,
     error_embed,
@@ -47,9 +46,14 @@ class RouletteView(discord.ui.View):
         interaction: discord.Interaction
     ) -> bool:
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая рулетка",
+                description="Это колесо принадлежит другому игроку.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоя рулетка.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -98,16 +102,26 @@ class RouletteView(discord.ui.View):
         choice: str
     ):
         if self.finished:
+            embed = warning_embed(
+                title="Партия завершена",
+                description="Это колесо уже остановилось.",
+            )
+
             await interaction.response.send_message(
-                "Эта партия уже завершена.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return
 
         if self.processing:
+            embed = warning_embed(
+                title="Колесо уже вращается",
+                description="Дождись результата текущего вращения.",
+            )
+
             await interaction.response.send_message(
-                "Колесо уже вращается.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return
 
@@ -140,14 +154,18 @@ class RouletteView(discord.ui.View):
                     user_id=self.player_id
                 )
 
-                await interaction.followup.send(
-                    (
-                        "Недостаточно средств для ставки.\n"
+                embed = error_embed(
+                    title="Недостаточно средств",
+                    description=(
+                        "Баланс изменился после выбора ставки.\n\n"
                         f"Баланс: "
-                        f"**{current_balance} "
-                        f"{CURRENCY_SYMBOL}**"
+                        f"**{current_balance} {CURRENCY_SYMBOL}**"
                     ),
-                    ephemeral=True
+                )
+
+                await interaction.followup.send(
+                    embed=embed,
+                    ephemeral=True,
                 )
 
                 return
@@ -323,16 +341,24 @@ class RouletteView(discord.ui.View):
                 error.__traceback__
             )
 
+            embed = error_embed(
+                title="Ошибка рулетки",
+                description=(
+                    "Во время вращения произошла ошибка.\n"
+                    "Попробуй открыть казино заново."
+                ),
+            )
+
             try:
                 if interaction.response.is_done():
                     await interaction.followup.send(
-                        "Произошла ошибка рулетки.",
-                        ephemeral=True
+                        embed=embed,
+                        ephemeral=True,
                     )
                 else:
                     await interaction.response.send_message(
-                        "Произошла ошибка рулетки.",
-                        ephemeral=True
+                        embed=embed,
+                        ephemeral=True,
                     )
 
             except Exception as response_error:

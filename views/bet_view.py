@@ -6,6 +6,7 @@ from services.casino import place_bet
 from utils.embeds import (
     casino_embed,
     error_embed,
+    warning_embed,
 )
 
 from .games.roulette_view import RouletteView
@@ -308,8 +309,13 @@ class BetConfirmView(discord.ui.View):
         """
 
         if self.processing:
+            embed = warning_embed(
+                title="Игра запускается",
+                description="Предыдущий переход ещё не завершён.",
+            )
+
             await interaction.response.send_message(
-                "Игра уже запускается.",
+                embed=embed,
                 ephemeral=True,
             )
             return
@@ -327,15 +333,19 @@ class BetConfirmView(discord.ui.View):
                 bet=self.bet,
             )
 
-            await interaction.response.edit_message(
-                content=(
-                    "## 🎡 Рулетка\n\n"
-                    f"Ваша ставка: "
-                    f"**{self.bet} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    "Выберите сектор:"
+            embed = casino_embed(
+                title="🎡 Рулетка",
+                description=(
+                    "Колесо ждёт выбора.\n\n"
+                    f"Ставка: "
+                    f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
+                    "Выбери сектор:"
                 ),
-                embed=None,
+            )
+
+            await interaction.response.edit_message(
+                content=None,
+                embed=embed,
                 view=roulette_view,
             )
 
