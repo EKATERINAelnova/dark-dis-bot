@@ -5,7 +5,11 @@ import discord
 from config.economy import CURRENCY_SYMBOL
 from database.economy import get_balance
 from services.casino import place_bet
-
+from utils.embeds import (
+    casino_embed,
+    warning_embed,
+    error_embed,
+)
 
 GAME_NAMES = {
     "roulette": "🎡 Рулетка",
@@ -64,9 +68,14 @@ class CasinoResultView(discord.ui.View):
         """
 
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая игра",
+                description="Эта партия принадлежит другому игроку.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоя игра.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -108,9 +117,14 @@ class CasinoResultView(discord.ui.View):
 
         if self.processing:
             if not interaction.response.is_done():
+                embed = warning_embed(
+                    title="Действие уже выполняется",
+                    description="Предыдущий переход ещё не завершён.",
+                )
+
                 await interaction.response.send_message(
-                    "Действие уже выполняется.",
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
 
             return False
@@ -160,14 +174,19 @@ class CasinoResultView(discord.ui.View):
 
         game_name = GAME_NAMES[self.game]
 
-        await interaction.edit_original_response(
-            content=(
-                f"## {game_name}\n\n"
+        embed = casino_embed(
+            title=game_name,
+            description=(
                 f"Баланс: "
                 f"**{current_balance} {CURRENCY_SYMBOL}**\n\n"
-                "Выберите ставку:"
+                "Выбери ставку:"
             ),
-            view=bet_view
+        )
+
+        await interaction.edit_original_response(
+            content=None,
+            embed=embed,
+            view=bet_view,
         )
 
     # =========================================================
@@ -228,14 +247,20 @@ class CasinoResultView(discord.ui.View):
                 balance_after_bet=new_balance
             )
 
-            await interaction.edit_original_response(
-                content=(
-                    "## 🎰 Слоты\n\n"
-                    f"Ваша ставка: "
+            embed = casino_embed(
+                title="🎡 Рулетка",
+                description=(
+                    "Колесо ждёт нового выбора.\n\n"
+                    f"Ставка: "
                     f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    "Запускаем барабаны..."
+                    "Выбери сектор:"
                 ),
-                view=None
+            )
+
+            await interaction.edit_original_response(
+                content=None,
+                embed=embed,
+                view=roulette_view,
             )
 
             await slots_view.play(
@@ -275,14 +300,20 @@ class CasinoResultView(discord.ui.View):
                 bet=self.bet
             )
 
-            await interaction.edit_original_response(
-                content=(
-                    "## 🎡 Рулетка\n\n"
-                    f"Ваша ставка: "
+            embed = casino_embed(
+                title="🎡 Рулетка",
+                description=(
+                    "Колесо ждёт нового выбора.\n\n"
+                    f"Ставка: "
                     f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
-                    "Выберите сектор:"
+                    "Выбери сектор:"
                 ),
-                view=roulette_view
+            )
+
+            await interaction.edit_original_response(
+                content=None,
+                embed=embed,
+                view=roulette_view,
             )
 
             return
@@ -347,12 +378,18 @@ class CasinoResultView(discord.ui.View):
             self.player_id
         )
 
-        await interaction.edit_original_response(
-            content=(
-                "## 🍎 LOST EDEN CASINO\n\n"
+        embed = casino_embed(
+            title="🎰 LOST EDEN CASINO",
+            description=(
+                "Добро пожаловать за столы сада.\n\n"
                 "Выбери игру:"
             ),
-            view=casino_view
+        )
+
+        await interaction.edit_original_response(
+            content=None,
+            embed=embed,
+            view=casino_view,
         )
 
     # =========================================================

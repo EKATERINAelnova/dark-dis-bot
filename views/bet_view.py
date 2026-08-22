@@ -307,7 +307,6 @@ class BetConfirmView(discord.ui.View):
         Подтверждаем ставку
         и переходим непосредственно в игру.
         """
-
         if self.processing:
             embed = warning_embed(
                 title="Игра запускается",
