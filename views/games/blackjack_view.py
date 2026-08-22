@@ -131,12 +131,6 @@ class BlackjackBaseView(discord.ui.View):
                 repr(response_error)
             )
 
-        except Exception as response_error:
-            print(
-                "[BLACKJACK ERROR RESPONSE FAILED]",
-                repr(response_error)
-            )
-
     def disable_all_buttons(self):
         """
         Выключает все кнопки View.
@@ -183,9 +177,14 @@ class BlackjackResultView(BlackjackBaseView):
 
         if self.processing:
             if not interaction.response.is_done():
+                embed = warning_embed(
+                    title="Действие уже выполняется",
+                    description="Предыдущий переход ещё не завершён.",
+                )
+
                 await interaction.response.send_message(
-                    "Действие уже выполняется.",
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
 
             return False
@@ -253,16 +252,20 @@ class BlackjackResultView(BlackjackBaseView):
                 balance=current_balance
             )
 
-            await interaction.edit_original_response(
-                content=(
-                    "## 🃏 Blackjack\n\n"
-                    "Недостаточно средств, чтобы "
-                    "повторить предыдущую ставку.\n\n"
+            embed = casino_embed(
+                title="🃏 Blackjack",
+                description=(
+                    "На предыдущую ставку уже не хватает средств.\n\n"
                     f"Баланс: "
                     f"**{current_balance} {CURRENCY_SYMBOL}**\n\n"
-                    "Выберите другую ставку:"
+                    "Выбери другую ставку."
                 ),
-                view=bet_view
+            )
+
+            await interaction.edit_original_response(
+                content=None,
+                embed=embed,
+                view=bet_view,
             )
 
             return
@@ -630,16 +633,26 @@ class BlackjackView(BlackjackBaseView):
         """
 
         if self.finished:
+            embed = warning_embed(
+                title="Партия завершена",
+                description="Эта партия Blackjack уже закончилась.",
+            )
+
             await interaction.response.send_message(
-                "Эта партия уже завершена.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
         if self.processing:
+            embed = warning_embed(
+                title="Ход ещё выполняется",
+                description="Дождись завершения предыдущего действия.",
+            )
+
             await interaction.response.send_message(
-                "Предыдущее действие ещё выполняется.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -1098,13 +1111,17 @@ class BlackjackView(BlackjackBaseView):
         if not self.can_double():
             self.processing = False
 
-            await interaction.response.send_message(
-                (
-                    "Удвоение сейчас недоступно.\n"
-                    "Нужно иметь две карты и достаточно средств "
-                    "для второй ставки."
+            embed = warning_embed(
+                title="Удвоение недоступно",
+                description=(
+                    "Double Down возможен только на первых двух картах "
+                    "и при достаточном балансе."
                 ),
-                ephemeral=True
+            )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
             )
             return
 
