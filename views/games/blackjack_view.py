@@ -68,9 +68,16 @@ class BlackjackBaseView(discord.ui.View):
         """
 
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая партия",
+                description=(
+                    "Этот стол принадлежит другому игроку."
+                ),
+            )
+
             await interaction.response.send_message(
-                "Это не твоя партия.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -99,24 +106,30 @@ class BlackjackBaseView(discord.ui.View):
             error,
             error.__traceback__
         )
-
+        embed = error_embed(
+            title="Ошибка Blackjack",
+            description=(
+                "Что-то пошло не так во время партии.\n"
+                "Попробуй открыть казино заново."
+            ),
+        )
         try:
             if interaction.response.is_done():
                 await interaction.followup.send(
-                    (
-                        "Произошла ошибка Blackjack.\n"
-                        "Попробуй открыть казино заново."
-                    ),
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
             else:
                 await interaction.response.send_message(
-                    (
-                        "Произошла ошибка Blackjack.\n"
-                        "Попробуй открыть казино заново."
-                    ),
-                    ephemeral=True
+                    embed=embed,
+                    ephemeral=True,
                 )
+
+        except Exception as response_error:
+            print(
+                "[BLACKJACK ERROR RESPONSE FAILED]",
+                repr(response_error)
+            )
 
         except Exception as response_error:
             print(
@@ -300,14 +313,19 @@ class BlackjackResultView(BlackjackBaseView):
             balance=current_balance
         )
 
-        await interaction.edit_original_response(
-            content=(
-                "## 🃏 Blackjack\n\n"
+        embed = casino_embed(
+            title="🃏 Blackjack",
+            description=(
                 f"Баланс: "
                 f"**{current_balance} {CURRENCY_SYMBOL}**\n\n"
-                "Выберите ставку:"
+                "Выбери новую ставку."
             ),
-            view=bet_view
+        )
+
+        await interaction.edit_original_response(
+            content=None,
+            embed=embed,
+            view=bet_view,
         )
 
     # =====================================================
@@ -334,12 +352,18 @@ class BlackjackResultView(BlackjackBaseView):
             self.player_id
         )
 
-        await interaction.edit_original_response(
-            content=(
-                "## 🍎 LOST EDEN CASINO\n\n"
+        embed = casino_embed(
+            title="🎰 LOST EDEN CASINO",
+            description=(
+                "Добро пожаловать за столы сада.\n\n"
                 "Выбери игру:"
             ),
-            view=casino_view
+        )
+
+        await interaction.edit_original_response(
+            content=None,
+            embed=embed,
+            view=casino_view,
         )
 
     # =====================================================
@@ -1108,8 +1132,9 @@ class BlackjackView(BlackjackBaseView):
             self.update_buttons()
 
             self.message = await interaction.edit_original_response(
-                content=self.render_table(),
-                view=self
+                content=None,
+                embed=self.build_table_embed(),
+                view=self,
             )
 
             embed = error_embed(
