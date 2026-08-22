@@ -53,9 +53,14 @@ class BetView(discord.ui.View):
         """
 
         if interaction.user.id != self.player_id:
+            embed = error_embed(
+                title="Чужая игра",
+                description="Эта ставка принадлежит другому игроку.",
+            )
+
             await interaction.response.send_message(
-                "Это не твоя игра.",
-                ephemeral=True
+                embed=embed,
+                ephemeral=True,
             )
             return False
 
@@ -303,7 +308,8 @@ class BetConfirmView(discord.ui.View):
                     f"**{self.bet} {CURRENCY_SYMBOL}**\n\n"
                     "Выберите сектор:"
                 ),
-                view=roulette_view
+                embed=None,
+                view=roulette_view,
             )
 
             self.stop()
