@@ -1,46 +1,87 @@
 import discord
-from utils.profile_card import (
-    ProfileStats,
-    create_profile_card
-)
+
 from discord import app_commands
 from discord.ext import commands
+
 from config.theme import EDEN_GOLD
-from views.info_view import ServerInfoView
-from utils.server_banner import create_server_banner
+
 from database.member_stats import (
     get_member_stats,
-    get_member_rank
+    get_member_rank,
 )
+
+from utils.profile_card import (
+    ProfileStats,
+    create_profile_card,
+)
+
+from utils.server_banner import (
+    create_server_banner,
+)
+
 from utils.leveling import (
     level_from_xp,
-    xp_to_next_level
+    xp_to_next_level,
 )
-from utils.embeds import eden_embed
+
+from utils.embeds import (
+    eden_embed,
+    error_embed,
+)
+
+from views.info_view import ServerInfoView
 from views.leaderboard_view import LeaderboardView
 
+
 class General(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+    ):
         self.bot = bot
+
+    # =========================================================
+    # TEST BANNER
+    # =========================================================
 
     @app_commands.command(
         name="testbanner",
-        description="Тест обновления баннера"
+        description="Тест обновления баннера",
+    )
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(
+        administrator=True
     )
     async def testbanner(
         self,
-        interaction: discord.Interaction
+        interaction: discord.Interaction,
     ):
+        """
+        Ручное тестовое обновление баннера.
+
+        Доступно только администраторам.
+        """
+
         guild = interaction.guild
 
         if guild is None:
             return
 
+        # Сразу подтверждаем interaction,
+        # потому что генерация изображения
+        # и guild.edit могут занять время.
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
         online_count = sum(
             1
             for member in guild.members
-            if member.status != discord.Status.offline
-            and not member.bot
+            if (
+                not member.bot
+                and member.status
+                != discord.Status.offline
+            )
         )
 
         member_count = sum(
@@ -51,55 +92,85 @@ class General(commands.Cog):
 
         banner = create_server_banner(
             online_count,
-            member_count
+            member_count,
         )
 
         await guild.edit(
             banner=banner,
-            reason="Тест динамического баннера"
+            reason=(
+                "Тест динамического баннера"
+            ),
         )
 
-        await interaction.response.send_message(
-            f"Баннер обновлён: "
-            f"{online_count} в саду / "
-            f"{member_count} душ",
-            ephemeral=True
+        embed = eden_embed(
+            title="🌿 Баннер обновлён",
+            description=(
+                f"В саду: "
+                f"**{online_count}**\n"
+                f"Всего душ: "
+                f"**{member_count}**"
+            ),
         )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=True,
+        )
+
+    # =========================================================
+    # PING
+    # =========================================================
 
     @app_commands.command(
         name="ping",
-        description="Проверить работу бота"
-        )
+        description="Проверить работу бота",
+    )
     async def ping(
-            self,
-            interaction: discord.Interaction
-        ):
+        self,
+        interaction: discord.Interaction,
+    ):
         embed = eden_embed(
-        title="🌿 Связь с садом",
-        description=(
+            title="🌿 Связь с садом",
+            description=(
                 "Сад отвечает.\n"
-                f"Задержка: `{round(self.bot.latency * 1000)} ms`"
-            )
+                f"Задержка: "
+                f"`{round(self.bot.latency * 1000)} ms`"
+            ),
         )
 
         await interaction.response.send_message(
             embed=embed
         )
 
+    # =========================================================
+    # PROFILE
+    # =========================================================
+
     @app_commands.command(
         name="profile",
-        description="Открыть профиль участника сада"
+        description=(
+            "Открыть профиль участника сада"
+        ),
     )
     async def profile(
         self,
         interaction: discord.Interaction,
-        user: discord.Member | None = None
+        user: discord.Member | None = None,
     ):
         if interaction.guild is None:
-            await interaction.response.send_message(
-                "Профиль доступен только на сервере.",
-                ephemeral=True
+            embed = error_embed(
+                title="Профиль недоступен",
+                description=(
+                    "Профиль можно открыть "
+                    "только внутри сервера."
+                ),
             )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
+            )
+
             return
 
         if user is None:
@@ -109,19 +180,21 @@ class General(commands.Cog):
 
         db_stats = await get_member_stats(
             guild_id=interaction.guild.id,
-            user_id=user.id
+            user_id=user.id,
         )
-        level = level_from_xp(db_stats.xp)
+
+        level = level_from_xp(
+            db_stats.xp
+        )
 
         rank = await get_member_rank(
             guild_id=interaction.guild.id,
-            user_id=user.id
+            user_id=user.id,
         )
 
         xp_left = xp_to_next_level(
             db_stats.xp
         )
-        print(db_stats)
 
         profile_stats = ProfileStats(
             level=level,
@@ -130,38 +203,52 @@ class General(commands.Cog):
             xp_to_next_level=xp_left,
             currency=db_stats.currency,
             messages=db_stats.messages,
-            voice_seconds=db_stats.voice_seconds
+            voice_seconds=db_stats.voice_seconds,
         )
 
         card = await create_profile_card(
             user,
-            profile_stats
+            profile_stats,
         )
 
         file = discord.File(
             card,
-            filename="profile.png"
+            filename="profile.png",
         )
 
         await interaction.followup.send(
             file=file
         )
-    
+
+    # =========================================================
+    # USER INFO
+    # =========================================================
+
     @app_commands.command(
-    name="userinfo",
-    description="Информация об участнике сада"
-)
+        name="userinfo",
+        description=(
+            "Информация об участнике сада"
+        ),
+    )
     async def userinfo(
         self,
         interaction: discord.Interaction,
-        user: discord.Member
+        user: discord.Member,
     ):
         if user.joined_at is None:
             joined_text = "Неизвестно"
         else:
-            joined_text = user.joined_at.strftime("%d.%m.%Y")
+            joined_text = (
+                user.joined_at.strftime(
+                    "%d.%m.%Y"
+                )
+            )
 
-        created_text = user.created_at.strftime("%d.%m.%Y")
+        created_text = (
+            user.created_at.strftime(
+                "%d.%m.%Y"
+            )
+        )
 
         roles_text = ", ".join(
             role.mention
@@ -169,40 +256,43 @@ class General(commands.Cog):
             if role.name != "@everyone"
         )
 
-        if roles_text == "":
-            roles_text = "Пока без выбранных ролей"
+        if not roles_text:
+            roles_text = (
+                "Пока без выбранных ролей"
+            )
 
         embed = discord.Embed(
             title="🌿 Путник сада",
             description=(
                 f"{user.mention}\n"
-                "*Каждый приходит сюда со своей дорогой за спиной.*"
+                "*Каждый приходит сюда "
+                "со своей дорогой за спиной.*"
             ),
-            colour=EDEN_GOLD
+            colour=EDEN_GOLD,
         )
 
         embed.add_field(
             name="Имя",
             value=user.display_name,
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
             name="В саду с",
             value=joined_text,
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
             name="Путь начался",
             value=created_text,
-            inline=True
+            inline=True,
         )
 
         embed.add_field(
             name="Корни и состояния",
             value=roles_text,
-            inline=False
+            inline=False,
         )
 
         embed.set_thumbnail(
@@ -210,55 +300,88 @@ class General(commands.Cog):
         )
 
         embed.set_footer(
-            text=f"LOST EDEN · RIMAY  •  ID {user.id}"
+            text=(
+                f"LOST EDEN · RIMAY  •  "
+                f"ID {user.id}"
+            )
         )
 
         await interaction.response.send_message(
             embed=embed
         )
 
+    # =========================================================
+    # SERVER INFO
+    # =========================================================
+
     @app_commands.command(
-    name="serverinfo",
-    description="Открыть карту LOST EDEN"
+        name="serverinfo",
+        description="Открыть карту LOST EDEN",
     )
     async def serverinfo(
         self,
-        interaction: discord.Interaction
+        interaction: discord.Interaction,
     ):
         guild = interaction.guild
 
         if guild is None:
-            await interaction.response.send_message(
-                "Карта сада доступна только внутри сервера.",
-                ephemeral=True
+            embed = error_embed(
+                title="Карта недоступна",
+                description=(
+                    "Карта сада доступна "
+                    "только внутри сервера."
+                ),
             )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
+            )
+
             return
 
         view = ServerInfoView(
             guild=guild,
-            user_id=interaction.user.id
+            user_id=interaction.user.id,
         )
 
         await interaction.response.send_message(
             embed=view.main_embed(),
-            view=view
+            view=view,
         )
 
-        view.message = await interaction.original_response()
+        view.message = (
+            await interaction.original_response()
+        )
+
+    # =========================================================
+    # LEADERBOARD
+    # =========================================================
 
     @app_commands.command(
         name="leaderboard",
-        description="Посмотреть рейтинг участников сада"
+        description=(
+            "Посмотреть рейтинг участников сада"
+        ),
     )
     async def leaderboard(
         self,
         interaction: discord.Interaction,
     ):
         if interaction.guild is None:
+            embed = error_embed(
+                title="Рейтинг недоступен",
+                description=(
+                    "Рейтинг можно открыть "
+                    "только внутри сервера."
+                ),
+            )
+
             await interaction.response.send_message(
-                "Эта команда доступна только на сервере.",
+                embed=embed,
                 ephemeral=True,
             )
+
             return
 
         await interaction.response.defer()
@@ -270,10 +393,24 @@ class General(commands.Cog):
 
         embed = await view.build_embed()
 
-        await interaction.followup.send(
+        # ВАЖНО:
+        # сохраняем отправленное сообщение,
+        # чтобы LeaderboardView.on_timeout()
+        # смог отключить кнопки.
+        message = await interaction.followup.send(
             embed=embed,
             view=view,
+            wait=True,
         )
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(General(bot))
+        view.bind_message(
+            message
+        )
+
+
+async def setup(
+    bot: commands.Bot,
+):
+    await bot.add_cog(
+        General(bot)
+    )

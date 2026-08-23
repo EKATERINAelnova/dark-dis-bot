@@ -1,10 +1,12 @@
 from typing import Literal
 
-import aiosqlite
-
-from database.connection import DB_PATH
+from database.connection import get_db
 from database.models import MemberStats
 
+
+# =========================================================
+# TYPES
+# =========================================================
 
 LeaderboardCategory = Literal[
     "xp",
@@ -14,51 +16,89 @@ LeaderboardCategory = Literal[
 ]
 
 
+# =========================================================
+# SORTING
+# =========================================================
+
 ORDER_BY = {
     "xp": """
         xp DESC,
         messages DESC,
-        voice_seconds DESC
+        voice_seconds DESC,
+        user_id ASC
     """,
 
     "messages": """
         messages DESC,
-        xp DESC
+        xp DESC,
+        user_id ASC
     """,
 
     "voice": """
         voice_seconds DESC,
-        xp DESC
+        xp DESC,
+        user_id ASC
     """,
 
     "currency": """
         currency DESC,
-        xp DESC
+        xp DESC,
+        user_id ASC
     """,
 }
 
 
-RANK_COLUMN = {
-    "xp": "xp",
-    "messages": "messages",
-    "voice": "voice_seconds",
-    "currency": "currency",
-}
+# =========================================================
+# VALIDATION
+# =========================================================
 
+def validate_category(
+    category: LeaderboardCategory,
+) -> None:
+    """
+    Проверяет существование категории рейтинга.
+    """
+
+    if category not in ORDER_BY:
+        raise ValueError(
+            f"Неизвестная категория рейтинга: "
+            f"{category}"
+        )
+
+
+# =========================================================
+# LEADERBOARD
+# =========================================================
 
 async def get_leaderboard(
     guild_id: int,
     category: LeaderboardCategory = "xp",
     limit: int = 10,
 ) -> list[MemberStats]:
-    if category not in ORDER_BY:
-        raise ValueError(
-            f"Unknown leaderboard category: {category}"
-        )
+    """
+    Возвращает участников,
+    отсортированных по выбранной категории.
+    """
 
-    order_by = ORDER_BY[category]
+    validate_category(
+        category
+    )
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    if limit <= 0:
+        return []
+
+    # Защита от случайного запроса
+    # огромного количества строк.
+    limit = min(
+        limit,
+        100,
+    )
+
+    order_by = ORDER_BY[
+        category
+    ]
+
+    async with get_db() as db:
         cursor = await db.execute(
             f"""
             SELECT
@@ -76,70 +116,83 @@ async def get_leaderboard(
             (
                 guild_id,
                 limit,
-            )
+            ),
         )
 
         rows = await cursor.fetchall()
 
+        await cursor.close()
+
     return [
         MemberStats(
-            guild_id=row[0],
-            user_id=row[1],
-            messages=row[2],
-            voice_seconds=row[3],
-            xp=row[4],
-            currency=row[5],
+            guild_id=int(row[0]),
+            user_id=int(row[1]),
+            messages=int(row[2]),
+            voice_seconds=int(row[3]),
+            xp=int(row[4]),
+            currency=int(row[5]),
         )
         for row in rows
     ]
 
+
+# =========================================================
+# RANK
+# =========================================================
 
 async def get_leaderboard_rank(
     guild_id: int,
     user_id: int,
     category: LeaderboardCategory = "xp",
 ) -> int:
-    if category not in RANK_COLUMN:
-        raise ValueError(
-            f"Unknown leaderboard category: {category}"
-        )
+    """
+    Возвращает точное место пользователя
+    в выбранной категории.
 
-    column = RANK_COLUMN[category]
+    Используется та же сортировка,
+    что и в get_leaderboard().
+    """
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    validate_category(
+        category
+    )
+
+    order_by = ORDER_BY[
+        category
+    ]
+
+    async with get_db() as db:
         cursor = await db.execute(
             f"""
-            SELECT {column}
-            FROM member_stats
-            WHERE guild_id = ?
-              AND user_id = ?
+            SELECT ranking_position
+            FROM (
+                SELECT
+                    user_id,
+
+                    ROW_NUMBER() OVER (
+                        ORDER BY {order_by}
+                    ) AS ranking_position
+
+                FROM member_stats
+                WHERE guild_id = ?
+            )
+            WHERE user_id = ?
             """,
             (
                 guild_id,
                 user_id,
-            )
+            ),
         )
 
         row = await cursor.fetchone()
 
-        if row is None:
-            return 0
+        await cursor.close()
 
-        value = row[0]
+    # Пользователь ещё отсутствует
+    # в member_stats.
+    if row is None:
+        return 0
 
-        cursor = await db.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM member_stats
-            WHERE guild_id = ?
-              AND {column} > ?
-            """,
-            (
-                guild_id,
-                value,
-            )
-        )
-
-        row = await cursor.fetchone()
-
-    return row[0] + 1
+    return int(
+        row[0]
+    )
