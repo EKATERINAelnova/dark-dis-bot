@@ -262,22 +262,7 @@ class CasinoResultView(discord.ui.View):
                 bet=self.bet,
                 balance_after_bet=new_balance,
             )
-
-            # Временно оставляем content,
-            # пока сам SlotsView ещё не
-            # переведён на embeds.
-            await interaction.edit_original_response(
-                content=(
-                    "## 🎰 Слоты\n\n"
-                    f"Ставка: "
-                    f"**{self.bet} "
-                    f"{CURRENCY_SYMBOL}**\n\n"
-                    "Запускаем барабаны..."
-                ),
-                embed=None,
-                view=None,
-            )
-
+            
             await slots_view.play(
                 interaction
             )
