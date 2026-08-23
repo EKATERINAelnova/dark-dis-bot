@@ -8,9 +8,9 @@ from config.economy import CURRENCY_SYMBOL
 from services.casino import payout
 from utils.embeds import (
     casino_embed,
-    success_embed,
-    warning_embed,
-    error_embed,
+    casino_success_embed,
+    casino_warning_embed,
+    casino_error_embed,
 )
 
 from .result_casino_view import CasinoResultView
@@ -136,34 +136,34 @@ class SlotsView(discord.ui.View):
         self,
         result: tuple[str, str, str],
     ) -> discord.Embed:
-        """
-        Создаёт промежуточный экран
-        вращения барабанов.
-        """
-
         embed = casino_embed(
-            title="🎰 Слоты",
+            title="🎰 СЛОТЫ",
             description=(
-                "Барабаны вращаются..."
+                "*Барабаны сада приходят в движение...*"
             ),
         )
 
         embed.add_field(
-            name="Ставка",
+            name="🎲 Барабаны",
+            value=(
+                f"## {self.format_result(result)}"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🍎 Ставка",
             value=(
                 f"**{self.bet} "
                 f"{CURRENCY_SYMBOL}**"
             ),
-            inline=False,
+            inline=True,
         )
 
         embed.add_field(
-            name="Барабаны",
-            value=(
-                f"## "
-                f"{self.format_result(result)}"
-            ),
-            inline=False,
+            name="Статус",
+            value="`ВРАЩЕНИЕ`",
+            inline=True,
         )
 
         return embed
@@ -176,20 +176,24 @@ class SlotsView(discord.ui.View):
         self,
         result: tuple[str, str, str],
     ) -> discord.Embed:
-        """
-        Создаёт итоговый экран проигрыша.
-        """
-
-        embed = warning_embed(
-            title="🎰 Слоты · Проигрыш",
+        embed = casino_warning_embed(
+            title="🎰 СЛОТЫ · ПРОИГРЫШ",
             description=(
-                f"## "
-                f"{self.format_result(result)}"
+                "*Символы разошлись. "
+                "Ставка остаётся саду.*"
             ),
         )
 
         embed.add_field(
-            name="Ставка",
+            name="🎲 Результат",
+            value=(
+                f"## {self.format_result(result)}"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🍎 Ставка",
             value=(
                 f"**{self.bet} "
                 f"{CURRENCY_SYMBOL}**"
@@ -200,14 +204,14 @@ class SlotsView(discord.ui.View):
         embed.add_field(
             name="Потеряно",
             value=(
-                f"**{self.bet} "
+                f"**−{self.bet} "
                 f"{CURRENCY_SYMBOL}**"
             ),
             inline=True,
         )
 
         embed.add_field(
-            name="Баланс",
+            name="Баланс после игры",
             value=(
                 f"**{self.balance_after_bet} "
                 f"{CURRENCY_SYMBOL}**"
@@ -229,20 +233,24 @@ class SlotsView(discord.ui.View):
         profit: int,
         new_balance: int,
     ) -> discord.Embed:
-        """
-        Создаёт итоговый экран победы.
-        """
-
-        embed = success_embed(
-            title="🎰 Слоты · Победа",
+        embed = casino_success_embed(
+            title="🎰 СЛОТЫ · ПОБЕДА",
             description=(
-                f"## "
-                f"{self.format_result(result)}"
+                "*Символы сошлись. "
+                "Сад отвечает.*"
             ),
         )
 
         embed.add_field(
-            name="Ставка",
+            name="✨ Результат",
+            value=(
+                f"## {self.format_result(result)}"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🍎 Ставка",
             value=(
                 f"**{self.bet} "
                 f"{CURRENCY_SYMBOL}**"
@@ -259,15 +267,26 @@ class SlotsView(discord.ui.View):
         )
 
         embed.add_field(
-            name="Итог",
+            name="Выплата",
             value=(
-                f"Выплата: "
                 f"**{payout_amount} "
-                f"{CURRENCY_SYMBOL}**\n"
-                f"Чистый выигрыш: "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Чистый выигрыш",
+            value=(
                 f"**+{profit} "
-                f"{CURRENCY_SYMBOL}**\n"
-                f"Баланс: "
+                f"{CURRENCY_SYMBOL}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Баланс",
+            value=(
                 f"**{new_balance} "
                 f"{CURRENCY_SYMBOL}**"
             ),
@@ -456,11 +475,10 @@ class SlotsView(discord.ui.View):
                 error.__traceback__,
             )
 
-            embed = error_embed(
-                title="Ошибка слотов",
+            embed = casino_error_embed(
+                title="🎰 СЛОТЫ · ОШИБКА",
                 description=(
-                    "Во время вращения "
-                    "произошла ошибка.\n"
+                    "Барабаны остановились раньше времени.\n\n"
                     "Попробуй открыть казино заново."
                 ),
             )

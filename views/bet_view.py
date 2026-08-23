@@ -1,6 +1,9 @@
 import discord
 
-from config.economy import CURRENCY_SYMBOL
+from config.economy import (
+    CURRENCY_SYMBOL,
+    CASINO_MIN_BET,
+)
 from database.economy import get_balance
 from services.casino import place_bet
 from utils.embeds import (
@@ -57,11 +60,6 @@ class BetView(discord.ui.View):
         self,
         interaction: discord.Interaction,
     ) -> bool:
-        """
-        Не позволяет другим пользователям
-        нажимать кнопки чужой игры.
-        """
-
         if interaction.user.id != self.player_id:
             embed = error_embed(
                 title="Чужая игра",
@@ -86,8 +84,8 @@ class BetView(discord.ui.View):
 
     def disable_unavailable_bets(self):
         """
-        Отключает кнопки ставок,
-        превышающих текущий баланс.
+        Отключает ставки,
+        превышающие текущий баланс.
         """
 
         for item in self.children:
@@ -126,18 +124,18 @@ class BetView(discord.ui.View):
         """
         Переходит к подтверждению ставки.
 
-        Деньги всё ещё не списываются.
+        Деньги ещё не списываются.
         """
 
-        # Дополнительная защита,
-        # даже если кнопка почему-то не была disabled.
         if bet > self.balance:
             embed = error_embed(
                 title="Недостаточно средств",
                 description=(
                     "Для этой ставки "
                     "не хватает средств.\n\n"
-                    f"Баланс: "
+                    f"Ставка: "
+                    f"**{bet} {CURRENCY_SYMBOL}**\n"
+                    f"Твой баланс: "
                     f"**{self.balance} "
                     f"{CURRENCY_SYMBOL}**"
                 ),
@@ -281,9 +279,6 @@ class BetConfirmView(discord.ui.View):
     """
     Экран подтверждения ставки.
 
-    После нажатия "Играть"
-    размер ставки считается зафиксированным.
-
     Roulette:
         ставка списывается после выбора сектора.
 
@@ -343,9 +338,54 @@ class BetConfirmView(discord.ui.View):
         current_balance: int,
     ):
         """
-        Возвращает пользователя
-        к выбору ставки после неудачного списания.
+        Показывает явную ошибку нехватки средств.
+
+        Если денег хватает хотя бы
+        на минимальную ставку,
+        пользователь может выбрать меньшую.
+
+        Если денег меньше минимальной ставки,
+        кнопки ставок не показываются.
         """
+
+        game_name = GAME_NAMES.get(
+            self.game,
+            "🎰 Казино",
+        )
+
+        # =================================================
+        # ДЕНЕГ НЕТ ДАЖЕ НА МИНИМАЛЬНУЮ СТАВКУ
+        # =================================================
+
+        if current_balance < CASINO_MIN_BET:
+            embed = error_embed(
+                title="Недостаточно средств",
+                description=(
+                    f"Не хватает Seeds для игры "
+                    f"в **{game_name}**.\n\n"
+                    f"Выбранная ставка: "
+                    f"**{self.bet} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Твой баланс: "
+                    f"**{current_balance} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Минимальная ставка: "
+                    f"**{CASINO_MIN_BET} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+            )
+
+            await interaction.edit_original_response(
+                content=None,
+                embed=embed,
+                view=None,
+            )
+
+            return
+
+        # =================================================
+        # МОЖНО ВЫБРАТЬ МЕНЬШУЮ СТАВКУ
+        # =================================================
 
         bet_view = BetView(
             player_id=self.player_id,
@@ -354,20 +394,18 @@ class BetConfirmView(discord.ui.View):
             balance=current_balance,
         )
 
-        game_name = GAME_NAMES.get(
-            self.game,
-            "🎰 Казино",
-        )
-
-        embed = casino_embed(
-            title=game_name,
+        embed = error_embed(
+            title="Недостаточно средств",
             description=(
-                "Недостаточно средств "
-                "для этой ставки.\n\n"
-                f"Баланс: "
+                "На выбранную ставку "
+                "больше не хватает средств.\n\n"
+                f"Выбранная ставка: "
+                f"**{self.bet} "
+                f"{CURRENCY_SYMBOL}**\n"
+                f"Твой баланс: "
                 f"**{current_balance} "
                 f"{CURRENCY_SYMBOL}**\n\n"
-                "Выбери другую ставку:"
+                "Выбери меньшую ставку."
             ),
         )
 
@@ -391,11 +429,6 @@ class BetConfirmView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ):
-        """
-        Фиксирует ставку
-        и запускает выбранную игру.
-        """
-
         if self.processing:
             embed = warning_embed(
                 title="Игра запускается",
@@ -450,8 +483,6 @@ class BetConfirmView(discord.ui.View):
         # =====================================================
 
         if self.game == "blackjack":
-            # Подтверждаем interaction,
-            # потому что дальше идут запросы к БД.
             await interaction.response.defer()
 
             new_balance = await place_bet(
@@ -461,8 +492,6 @@ class BetConfirmView(discord.ui.View):
                 game="blackjack",
             )
 
-            # Баланс мог измениться
-            # после выбора ставки.
             if new_balance is None:
                 self.processing = False
 
@@ -498,8 +527,6 @@ class BetConfirmView(discord.ui.View):
         # =====================================================
 
         if self.game == "slots":
-            # Slots тоже выполняют работу после клика,
-            # поэтому заранее подтверждаем interaction.
             await interaction.response.defer()
 
             new_balance = await place_bet(
@@ -509,8 +536,6 @@ class BetConfirmView(discord.ui.View):
                 game="slots",
             )
 
-            # Баланс мог измениться
-            # после выбора ставки.
             if new_balance is None:
                 self.processing = False
 
@@ -534,8 +559,6 @@ class BetConfirmView(discord.ui.View):
                 balance_after_bet=new_balance,
             )
 
-            # Никакого промежуточного content.
-            # SlotsView сам создаёт первый embed.
             await slots_view.play(
                 interaction
             )
@@ -576,11 +599,6 @@ class BetConfirmView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ):
-        """
-        Пока ставка не подтверждена,
-        её можно изменить.
-        """
-
         if self.processing:
             embed = warning_embed(
                 title="Игра запускается",
@@ -602,16 +620,48 @@ class BetConfirmView(discord.ui.View):
             user_id=self.player_id,
         )
 
+        game_name = GAME_NAMES.get(
+            self.game,
+            "🎰 Казино",
+        )
+
+        # =================================================
+        # БАЛАНС НИЖЕ МИНИМАЛЬНОЙ СТАВКИ
+        # =================================================
+
+        if current_balance < CASINO_MIN_BET:
+            embed = error_embed(
+                title="Недостаточно средств",
+                description=(
+                    f"Для игры в **{game_name}** "
+                    "не хватает средсв.\n\n"
+                    f"Минимальная ставка: "
+                    f"**{CASINO_MIN_BET} "
+                    f"{CURRENCY_SYMBOL}**\n"
+                    f"Твой баланс: "
+                    f"**{current_balance} "
+                    f"{CURRENCY_SYMBOL}**"
+                ),
+            )
+
+            await interaction.response.edit_message(
+                content=None,
+                embed=embed,
+                view=None,
+            )
+
+            self.stop()
+            return
+
+        # =================================================
+        # ОБЫЧНЫЙ ВОЗВРАТ К СТАВКАМ
+        # =================================================
+
         bet_view = BetView(
             player_id=self.player_id,
             guild_id=self.guild_id,
             game=self.game,
             balance=current_balance,
-        )
-
-        game_name = GAME_NAMES.get(
-            self.game,
-            "🎰 Казино",
         )
 
         embed = casino_embed(
