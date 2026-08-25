@@ -107,7 +107,8 @@ async def get_leaderboard(
                 messages,
                 voice_seconds,
                 xp,
-                currency
+                currency,
+                eden_cases
             FROM member_stats
             WHERE guild_id = ?
             ORDER BY {order_by}
@@ -131,6 +132,7 @@ async def get_leaderboard(
             voice_seconds=int(row[3]),
             xp=int(row[4]),
             currency=int(row[5]),
+            eden_cases=int(row[6]),
         )
         for row in rows
     ]

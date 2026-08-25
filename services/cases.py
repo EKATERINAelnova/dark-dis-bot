@@ -3,13 +3,18 @@ import time
 
 from dataclasses import dataclass
 
+from config.economy import (
+    CURRENCY_SYMBOL,
+    REASON_CASE,
+)
+
 from database.connection import get_db
+
 from utils.leveling import level_from_xp
-from config.economy import REASON_CASE
 
 
 # =========================================================
-# REWARDS
+# REWARD
 # =========================================================
 
 @dataclass(frozen=True)
@@ -17,25 +22,28 @@ class CaseReward:
     kind: str
     amount: int
     weight: int
-
     title: str
     rarity: str
 
 
+# =========================================================
+# REWARDS
+# =========================================================
+
 CASE_REWARDS = [
     CaseReward(
-        kind="seeds",
+        kind="currency",
         amount=15,
         weight=40,
-        title="15 Seeds",
+        title=f"15 {CURRENCY_SYMBOL}",
         rarity="COMMON",
     ),
 
     CaseReward(
-        kind="seeds",
+        kind="currency",
         amount=35,
         weight=25,
-        title="35 Seeds",
+        title=f"35 {CURRENCY_SYMBOL}",
         rarity="UNCOMMON",
     ),
 
@@ -48,27 +56,19 @@ CASE_REWARDS = [
     ),
 
     CaseReward(
-        kind="seeds",
+        kind="currency",
         amount=100,
         weight=10,
-        title="100 Seeds",
+        title=f"100 {CURRENCY_SYMBOL}",
         rarity="RARE",
     ),
 
     CaseReward(
         kind="xp",
         amount=150,
-        weight=5,
+        weight=7,
         title="150 XP",
         rarity="EPIC",
-    ),
-
-    CaseReward(
-        kind="bloom",
-        amount=1,
-        weight=2,
-        title="1 Bloom",
-        rarity="EDEN",
     ),
 ]
 
@@ -90,7 +90,6 @@ class CaseOpenResult:
     new_level: int
 
     new_balance: int
-    blooms: int
 
     bonus_cases: int = 0
 
@@ -118,8 +117,6 @@ async def open_eden_case(
     guild_id: int,
     user_id: int,
 ) -> CaseOpenResult | None:
-
-    reward = roll_case_reward()
 
     async with get_db() as db:
         try:
@@ -150,8 +147,7 @@ async def open_eden_case(
                 SELECT
                     eden_cases,
                     xp,
-                    currency,
-                    blooms
+                    currency
                 FROM member_stats
                 WHERE guild_id = ?
                   AND user_id = ?
@@ -172,8 +168,7 @@ async def open_eden_case(
 
             eden_cases = int(row[0])
             old_xp = int(row[1])
-            currency = int(row[2])
-            blooms = int(row[3])
+            old_balance = int(row[2])
 
             # =============================================
             # NO CASES
@@ -184,20 +179,27 @@ async def open_eden_case(
 
                 return None
 
-            cases_left = eden_cases - 1
+            # Только теперь крутим награду.
+            reward = roll_case_reward()
+
+            cases_left = (
+                eden_cases - 1
+            )
 
             new_xp = old_xp
-            new_balance = currency
-            new_blooms = blooms
+            new_balance = old_balance
 
             bonus_cases = 0
 
             # =============================================
-            # SEEDS
+            # CURRENCY
             # =============================================
 
-            if reward.kind == "seeds":
-                new_balance += reward.amount
+            if reward.kind == "currency":
+                new_balance = (
+                    old_balance
+                    + reward.amount
+                )
 
                 await db.execute(
                     """
@@ -217,7 +219,7 @@ async def open_eden_case(
                         user_id,
                         reward.amount,
                         REASON_CASE,
-                        "eden_case",
+                        "eden_case_reward",
                         None,
                         int(time.time()),
                     ),
@@ -246,18 +248,13 @@ async def open_eden_case(
                     new_level - old_level,
                 )
 
-                cases_left += bonus_cases
-
-            # =============================================
-            # BLOOM
-            # =============================================
-
-            elif reward.kind == "bloom":
-                new_blooms += reward.amount
+                cases_left += (
+                    bonus_cases
+                )
 
             else:
                 raise RuntimeError(
-                    f"Неизвестная награда кейса: "
+                    f"Неизвестный тип награды: "
                     f"{reward.kind}"
                 )
 
@@ -271,8 +268,7 @@ async def open_eden_case(
                 SET
                     eden_cases = ?,
                     xp = ?,
-                    currency = ?,
-                    blooms = ?
+                    currency = ?
                 WHERE guild_id = ?
                   AND user_id = ?
                 """,
@@ -280,7 +276,6 @@ async def open_eden_case(
                     cases_left,
                     new_xp,
                     new_balance,
-                    new_blooms,
                     guild_id,
                     user_id,
                 ),
@@ -290,15 +285,16 @@ async def open_eden_case(
 
             return CaseOpenResult(
                 reward=reward,
+
                 cases_left=cases_left,
 
                 new_xp=new_xp,
+
                 new_level=level_from_xp(
                     new_xp
                 ),
 
                 new_balance=new_balance,
-                blooms=new_blooms,
 
                 bonus_cases=bonus_cases,
             )

@@ -2,7 +2,9 @@ import discord
 
 from discord import app_commands
 from discord.ext import commands
-from database.member_stats import add_xp
+from database.member_stats import add_xp, get_member_stats
+from services.level_roles import sync_level_role
+from utils.leveling import level_from_xp
 
 from config.economy import (
     CURRENCY_SYMBOL,
@@ -112,6 +114,55 @@ class EconomyAdmin(commands.Cog):
 
         await interaction.response.send_message(
             embed=embed,
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="synclevelrole",
+        description="Обновить level-роль пользователя",
+    )
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
+    async def sync_level_role_command(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+    ):
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        stats = await get_member_stats(
+            guild_id=interaction.guild.id,
+            user_id=user.id,
+        )
+
+        level = level_from_xp(
+            stats.xp
+        )
+
+        role = await sync_level_role(
+            member=user,
+            level=level,
+        )
+
+        if role is None:
+            text = (
+                f"{user.mention} сейчас "
+                f"на **{level} уровне**.\n"
+                "Юбилейная роль пока не положена."
+            )
+        else:
+            text = (
+                f"{user.mention}\n"
+                f"Уровень: **{level}**\n"
+                f"Роль: **{role.name}**"
+            )
+
+        await interaction.followup.send(
+            text,
             ephemeral=True,
         )
 

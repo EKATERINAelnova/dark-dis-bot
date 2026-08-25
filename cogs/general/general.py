@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from config.theme import EDEN_GOLD
+from views.cases_view import CasesView
 
 from database.member_stats import (
     get_member_stats,
@@ -220,6 +221,8 @@ class General(commands.Cog):
             file=file
         )
 
+    
+
     # =========================================================
     # USER INFO
     # =========================================================
@@ -384,54 +387,62 @@ class General(commands.Cog):
             stats.xp
         )
 
-        cases_count = stats.eden_cases
+        view = CasesView(
+            player_id=interaction.user.id,
+            guild_id=interaction.guild.id,
+        )
 
-        if cases_count == 0:
+        if stats.eden_cases <= 0:
+            view.open_button.disabled = True
+
             cases_text = (
                 "В хранилище пока тихо.\n"
-                "Следующий EDEN CASE появится, "
-                "когда ты достигнешь нового уровня."
+                "Следующий EDEN CASE появится "
+                "на новом уровне."
             )
-        elif cases_count == 1:
+
+        elif stats.eden_cases == 1:
             cases_text = (
                 "В хранилище ждёт "
                 "**1 EDEN CASE**."
             )
+
         else:
             cases_text = (
                 f"В хранилище ждут "
-                f"**{cases_count} EDEN CASES**."
+                f"**{stats.eden_cases} EDEN CASES**."
             )
 
         embed = eden_embed(
             title="✦ EDEN CASES",
             description=(
                 f"{cases_text}\n\n"
-                "*То, что сад сохраняет для тех, "
-                "кто продолжает свой путь.*"
+                "*То, что сад сохранил "
+                "для твоего пути.*"
             ),
         )
 
         embed.add_field(
-            name="Хранилище",
-            value=f"`{cases_count}`",
+            name="Cases",
+            value=f"`{stats.eden_cases}`",
             inline=True,
         )
 
         embed.add_field(
-            name="Уровень",
+            name="Level",
             value=f"`{level}`",
             inline=True,
         )
 
         embed.add_field(
-            name="До следующего кейса",
+            name="Next case",
             value=f"`{xp_left} XP`",
             inline=True,
         )
 
         await interaction.response.send_message(
             embed=embed,
+            view=view,
             ephemeral=True,
         )
     
