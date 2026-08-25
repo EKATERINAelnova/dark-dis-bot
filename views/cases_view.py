@@ -1,5 +1,5 @@
 import discord
-
+from services.achievements import check_achievements
 from config.economy import (
     CURRENCY_SYMBOL,
 )

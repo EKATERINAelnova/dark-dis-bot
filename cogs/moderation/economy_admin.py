@@ -5,6 +5,7 @@ from discord.ext import commands
 from database.member_stats import add_xp, get_member_stats
 from services.level_roles import sync_level_role
 from utils.leveling import level_from_xp
+from services.achievements import check_achievements
 
 from config.economy import (
     CURRENCY_SYMBOL,
@@ -52,6 +53,10 @@ class EconomyAdmin(commands.Cog):
             guild_id=interaction.guild.id,
             user_id=user.id,
             amount=amount,
+        )
+        await check_achievements(
+            guild_id=interaction.guild.id,
+            user_id=user.id,
         )
 
         if cases_gained > 0:

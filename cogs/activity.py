@@ -1,5 +1,5 @@
 import time
-
+from services.achievements import check_achievements
 import discord
 
 from discord.ext import (
@@ -228,6 +228,10 @@ class Activity(commands.Cog):
                     print(
                         f"[LEVEL ROLE] {error}"
                     )
+        await check_achievements(
+            guild_id=message.guild.id,
+            user_id=message.author.id,
+        )
 
     # =========================================================
     # VOICE HELPERS
