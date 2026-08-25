@@ -108,6 +108,7 @@ async def init_db() -> None:
                 voice_seconds INTEGER NOT NULL DEFAULT 0,
                 xp INTEGER NOT NULL DEFAULT 0,
                 currency INTEGER NOT NULL DEFAULT 0,
+                eden_cases INTEGER NOT NULL DEFAULT 0,
 
                 PRIMARY KEY (guild_id, user_id)
             )

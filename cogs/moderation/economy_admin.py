@@ -2,91 +2,201 @@ import discord
 
 from discord import app_commands
 from discord.ext import commands
+from database.member_stats import add_xp
 
 from config.economy import (
-    CURRENCY_NAME,
     CURRENCY_SYMBOL,
-    REASON_ADMIN
+    REASON_ADMIN,
 )
+
 from database.economy import change_balance
+
+from utils.embeds import (
+    success_embed,
+    error_embed,
+)
 
 
 class EconomyAdmin(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+    ):
         self.bot = bot
 
+    # =========================================================
+    # ADD FUNDS
+    # =========================================================
+
     @app_commands.command(
-        name="addseeds",
-        description="Добавить Seeds пользователю"
+        name="addxp",
+        description="Добавить XP пользователю для теста"
     )
-    @app_commands.checks.has_permissions(administrator=True)
-    async def add_seeds(
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
+    async def add_xp_command(
         self,
         interaction: discord.Interaction,
         user: discord.Member,
-        amount: app_commands.Range[int, 1, 100000]
+        amount: app_commands.Range[int, 1, 1000000],
     ):
+        new_xp, new_level, cases_gained = await add_xp(
+            guild_id=interaction.guild.id,
+            user_id=user.id,
+            amount=amount,
+        )
+
+        if cases_gained > 0:
+            reward_text = (
+                f"\n\n✦ Получено EDEN CASE: "
+                f"**{cases_gained}**"
+            )
+        else:
+            reward_text = ""
+
+        await interaction.response.send_message(
+            (
+                f"Добавлено **{amount} XP** "
+                f"для {user.mention}.\n\n"
+                f"XP: **{new_xp}**\n"
+                f"Уровень: **{new_level}**"
+                f"{reward_text}"
+            ),
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="addfunds",
+        description="Добавить средства пользователю",
+    )
+    @app_commands.guild_only()
+    @app_commands.default_permissions(
+        administrator=True
+    )
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
+    async def add_funds(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+        amount: app_commands.Range[
+            int,
+            1,
+            100000,
+        ],
+    ) -> None:
+        if interaction.guild is None:
+            return
+
         new_balance = await change_balance(
             guild_id=interaction.guild.id,
             user_id=user.id,
             amount=amount,
             reason=REASON_ADMIN,
             description="admin_add",
-            actor_id=interaction.user.id
+            actor_id=interaction.user.id,
         )
 
-        await interaction.response.send_message(
-            (
+        embed = success_embed(
+            title="Баланс изменён",
+            description=(
                 f"Баланс {user.mention} увеличен "
-                f"на **{amount} {CURRENCY_SYMBOL}**.\n"
+                f"на **{amount} {CURRENCY_SYMBOL}**.\n\n"
                 f"Новый баланс: "
                 f"**{new_balance} {CURRENCY_SYMBOL}**"
             ),
-            ephemeral=True
         )
 
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True,
+        )
+
+    # =========================================================
+    # REMOVE FUNDS
+    # =========================================================
+
     @app_commands.command(
-        name="removeseeds",
-        description="Уменьшить Seeds пользователя"
+        name="removefunds",
+        description="Уменьшить средства пользователя",
     )
-    @app_commands.checks.has_permissions(administrator=True)
-    async def remove_seeds(
+    @app_commands.guild_only()
+    @app_commands.default_permissions(
+        administrator=True
+    )
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
+    async def remove_funds(
         self,
         interaction: discord.Interaction,
         user: discord.Member,
-        amount: app_commands.Range[int, 1, 100000]
-    ):
+        amount: app_commands.Range[
+            int,
+            1,
+            100000,
+        ],
+    ) -> None:
+        if interaction.guild is None:
+            return
+
         new_balance = await change_balance(
             guild_id=interaction.guild.id,
             user_id=user.id,
             amount=-amount,
             reason=REASON_ADMIN,
             description="admin_remove",
-            actor_id=interaction.user.id
+            actor_id=interaction.user.id,
         )
 
+        # =====================================================
+        # INSUFFICIENT FUNDS
+        # =====================================================
+
         if new_balance is None:
-            await interaction.response.send_message(
-                (
-                    f"У {user.mention} недостаточно "
-                    f"{CURRENCY_NAME}.\n"
-                    f"Нельзя снять "
+            embed = error_embed(
+                title="Недостаточно средств",
+                description=(
+                    f"На балансе {user.mention} "
+                    f"недостаточно средств.\n\n"
+                    f"Нельзя списать "
                     f"**{amount} {CURRENCY_SYMBOL}**."
                 ),
-                ephemeral=True
             )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
+            )
+
             return
 
-        await interaction.response.send_message(
-            (
+        # =====================================================
+        # SUCCESS
+        # =====================================================
+
+        embed = success_embed(
+            title="Баланс изменён",
+            description=(
                 f"Баланс {user.mention} уменьшен "
-                f"на **{amount} {CURRENCY_SYMBOL}**.\n"
+                f"на **{amount} {CURRENCY_SYMBOL}**.\n\n"
                 f"Новый баланс: "
                 f"**{new_balance} {CURRENCY_SYMBOL}**"
             ),
-            ephemeral=True
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True,
         )
 
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(EconomyAdmin(bot))
+async def setup(
+    bot: commands.Bot,
+) -> None:
+    await bot.add_cog(
+        EconomyAdmin(bot)
+    )

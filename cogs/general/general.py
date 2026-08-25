@@ -354,6 +354,87 @@ class General(commands.Cog):
             await interaction.original_response()
         )
 
+
+    # =========================================================
+    # EDEN CASES
+    # =========================================================
+
+    @app_commands.command(
+        name="cases",
+        description="Открыть хранилище EDEN CASES",
+    )
+    @app_commands.guild_only()
+    async def cases(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if interaction.guild is None:
+            return
+
+        stats = await get_member_stats(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+        )
+
+        level = level_from_xp(
+            stats.xp
+        )
+
+        xp_left = xp_to_next_level(
+            stats.xp
+        )
+
+        cases_count = stats.eden_cases
+
+        if cases_count == 0:
+            cases_text = (
+                "В хранилище пока тихо.\n"
+                "Следующий EDEN CASE появится, "
+                "когда ты достигнешь нового уровня."
+            )
+        elif cases_count == 1:
+            cases_text = (
+                "В хранилище ждёт "
+                "**1 EDEN CASE**."
+            )
+        else:
+            cases_text = (
+                f"В хранилище ждут "
+                f"**{cases_count} EDEN CASES**."
+            )
+
+        embed = eden_embed(
+            title="✦ EDEN CASES",
+            description=(
+                f"{cases_text}\n\n"
+                "*То, что сад сохраняет для тех, "
+                "кто продолжает свой путь.*"
+            ),
+        )
+
+        embed.add_field(
+            name="Хранилище",
+            value=f"`{cases_count}`",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="Уровень",
+            value=f"`{level}`",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="До следующего кейса",
+            value=f"`{xp_left} XP`",
+            inline=True,
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True,
+        )
+    
     # =========================================================
     # LEADERBOARD
     # =========================================================

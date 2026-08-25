@@ -209,7 +209,41 @@ class BlackjackResultView(BlackjackBaseView):
         self.stop()
 
         return True
+    
+    async def show_insufficient_replay_balance(
+        self,
+        interaction: discord.Interaction,
+        current_balance: int,
+    ) -> None:
+        """
+        Показывает ошибку в том же сообщении,
+        не закрывая ResultView.
+        """
 
+        self.processing = False
+
+        embed = error_embed(
+            title="Недостаточно средств",
+            description=(
+                "Недостаточно средств, "
+                "чтобы повторить партию.\n\n"
+                f"Ставка: "
+                f"**{self.bet} {CURRENCY_SYMBOL}**\n"
+                f"Твой баланс: "
+                f"**{current_balance} "
+                f"{CURRENCY_SYMBOL}**\n\n"
+                "Измени ставку "
+                "или вернись в казино."
+            ),
+        )
+
+        self.message = (
+            await interaction.edit_original_response(
+                content=None,
+                embed=embed,
+                view=self,
+            )
+        )
     # =====================================================
     # ЕЩЁ РАЗ
     # =====================================================
@@ -218,64 +252,99 @@ class BlackjackResultView(BlackjackBaseView):
         label="Ещё раз",
         emoji="🔁",
         style=discord.ButtonStyle.success,
-        custom_id="blackjack_play_again"
+        custom_id="blackjack_play_again",
     )
     async def play_again(
         self,
         interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
-        if not await self.begin_transition(interaction):
+        button: discord.ui.Button,
+    ) -> None:
+        """
+        Запускает новую партию
+        с той же исходной ставкой.
+
+        ResultView закрывается только после того,
+        как ставка успешно списана.
+        """
+
+        # =====================================================
+        # DOUBLE CLICK PROTECTION
+        # =====================================================
+
+        if self.processing:
+            embed = warning_embed(
+                title="Действие уже выполняется",
+                description=(
+                    "Предыдущий переход "
+                    "ещё не завершён."
+                ),
+            )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True,
+            )
+
             return
 
-        # Повторяем именно исходную ставку.
+        self.processing = True
+
+        # Подтверждаем interaction,
+        # но старые кнопки пока не отключаем.
+        await interaction.response.defer()
+
+        # =====================================================
+        # PLACE BET
+        # =====================================================
+
         new_balance = await place_bet(
             guild_id=self.guild_id,
             user_id=self.player_id,
             bet=self.bet,
-            game="blackjack"
+            game="blackjack",
         )
 
-        # Денег уже недостаточно.
-        if new_balance is None:
-            from ..bet_view import BetView
+        # =====================================================
+        # INSUFFICIENT FUNDS
+        # =====================================================
 
+        if new_balance is None:
             current_balance = await get_balance(
                 guild_id=self.guild_id,
-                user_id=self.player_id
+                user_id=self.player_id,
             )
 
-            bet_view = BetView(
-                player_id=self.player_id,
-                guild_id=self.guild_id,
-                game="blackjack",
-                balance=current_balance
-            )
-
-            embed = casino_embed(
-                title="🃏 Blackjack",
-                description=(
-                    "На предыдущую ставку уже не хватает средств.\n\n"
-                    f"Баланс: "
-                    f"**{current_balance} {CURRENCY_SYMBOL}**\n\n"
-                    "Выбери другую ставку."
-                ),
-            )
-
-            await interaction.edit_original_response(
-                content=None,
-                embed=embed,
-                view=bet_view,
+            await self.show_insufficient_replay_balance(
+                interaction=interaction,
+                current_balance=current_balance,
             )
 
             return
 
-        # Новая независимая партия.
+        # =====================================================
+        # BET ACCEPTED
+        # =====================================================
+
+        # Только теперь закрываем старую ResultView.
+        self.disable_all_buttons()
+
+        self.message = (
+            await interaction.edit_original_response(
+                view=self,
+            )
+        )
+
+        self.stop()
+
+        # =====================================================
+        # NEW GAME
+        # =====================================================
+
         blackjack_view = BlackjackView(
             player_id=self.player_id,
             guild_id=self.guild_id,
             bet=self.bet,
-            balance_after_bet=new_balance
+            balance_after_bet=new_balance,
         )
 
         await blackjack_view.start_game(
