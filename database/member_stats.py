@@ -97,7 +97,7 @@ async def record_message(
     guild_id: int,
     user_id: int,
     xp_gain: int = 0,
-) -> int:
+) -> tuple[int, int]:
     """
     Учитывает сообщение и начисляет XP.
 
@@ -188,7 +188,7 @@ async def record_message(
 
             await db.commit()
 
-            return cases_gained
+            return cases_gained, new_level
 
         except Exception:
             await db.rollback()
@@ -203,7 +203,7 @@ async def add_voice_seconds(
     guild_id: int,
     user_id: int,
     seconds: int,
-) -> int:
+) -> tuple[int, int, int]:
     """
     Добавляет проведённое в голосовом канале время,
     начисляет XP за полностью завершённые минуты
@@ -213,7 +213,7 @@ async def add_voice_seconds(
     """
 
     if seconds <= 0:
-        return 0
+        return 0, 0, 1
 
     async with get_db() as db:
         try:
@@ -343,7 +343,11 @@ async def add_voice_seconds(
 
             await db.commit()
 
-            return xp_gain
+            return (
+                xp_gain,
+                cases_gained,
+                new_level,
+            )
 
         except Exception:
             await db.rollback()

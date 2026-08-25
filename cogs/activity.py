@@ -17,7 +17,7 @@ from database.member_stats import (
     record_message,
     ensure_members_exist,
 )
-
+from services.level_roles import sync_level_role
 
 # =========================================================
 # SETTINGS
@@ -204,11 +204,30 @@ class Activity(commands.Cog):
         #
         # XP начисляется только тогда,
         # когда прошёл cooldown.
-        await record_message(
+        cases_gained, new_level = await record_message(
             guild_id=message.guild.id,
             user_id=message.author.id,
             xp_gain=xp_gain,
         )
+
+        if cases_gained > 0:
+            member = message.guild.get_member(
+                message.author.id
+            )
+
+            if member is not None:
+                try:
+                    await sync_level_role(
+                        member=member,
+                        level=new_level,
+                    )
+                except (
+                    discord.HTTPException,
+                    RuntimeError,
+                ) as error:
+                    print(
+                        f"[LEVEL ROLE] {error}"
+                    )
 
     # =========================================================
     # VOICE HELPERS
@@ -255,11 +274,38 @@ class Activity(commands.Cog):
         # Только после успешной записи
         # двигаем начало несохранённого
         # участка вперёд.
-        await add_voice_seconds(
+        (
+            xp_gain,
+            cases_gained,
+            new_level,
+        ) = await add_voice_seconds(
             guild_id=guild_id,
             user_id=user_id,
             seconds=seconds,
         )
+        if cases_gained > 0:
+            guild = self.bot.get_guild(
+                guild_id
+            )
+
+            if guild is not None:
+                member = guild.get_member(
+                    user_id
+                )
+
+                if member is not None:
+                    try:
+                        await sync_level_role(
+                            member=member,
+                            level=new_level,
+                        )
+                    except (
+                        discord.HTTPException,
+                        RuntimeError,
+                    ) as error:
+                        print(
+                            f"[LEVEL ROLE] {error}"
+                        )
 
         # Не ставим просто `now`.
         #

@@ -13,7 +13,7 @@ from utils.embeds import (
     eden_embed,
     error_embed,
 )
-
+from services.level_roles import sync_level_role
 
 class CasesView(discord.ui.View):
     def __init__(
@@ -115,10 +115,6 @@ class CasesView(discord.ui.View):
     # =====================================================
     # OPEN
     # =====================================================
-    @discord.ui.button(
-        label="OPEN",
-        style=discord.ButtonStyle.secondary,
-    )
     async def open_button(
         self,
         interaction: discord.Interaction,
@@ -134,10 +130,6 @@ class CasesView(discord.ui.View):
                 guild_id=self.guild_id,
                 user_id=self.player_id,
             )
-
-            # =========================================
-            # NO CASES
-            # =========================================
 
             if result is None:
                 button.disabled = True
@@ -157,20 +149,11 @@ class CasesView(discord.ui.View):
 
                 return
 
-            # =========================================
-            # BUTTON STATE
-            # =========================================
-
             if result.cases_left <= 0:
                 button.disabled = True
                 button.label = "EMPTY"
-
             else:
                 button.label = "OPEN AGAIN"
-
-            # =========================================
-            # RESULT
-            # =========================================
 
             await interaction.response.edit_message(
                 embed=self.build_result_embed(
@@ -178,6 +161,27 @@ class CasesView(discord.ui.View):
                 ),
                 view=self,
             )
+
+            # Обновляем юбилейную роль
+            if (
+                result.bonus_cases > 0
+                and isinstance(
+                    interaction.user,
+                    discord.Member,
+                )
+            ):
+                try:
+                    await sync_level_role(
+                        member=interaction.user,
+                        level=result.new_level,
+                    )
+                except (
+                    discord.HTTPException,
+                    RuntimeError,
+                ) as error:
+                    print(
+                        f"[LEVEL ROLE] {error}"
+                    )
 
         finally:
             self.processing = False

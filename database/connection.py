@@ -115,6 +115,23 @@ async def init_db() -> None:
             """
         )
 
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS achievement_unlocks (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                achievement_key TEXT NOT NULL,
+                unlocked_at INTEGER NOT NULL,
+
+                PRIMARY KEY (
+                    guild_id,
+                    user_id,
+                    achievement_key
+                )
+            )
+            """
+        )
+
         # =====================================================
         # MIGRATION: XP
         # =====================================================
@@ -129,6 +146,16 @@ async def init_db() -> None:
         }
 
         await cursor.close()
+
+        if "eden_cases" not in columns:
+            await db.execute(
+                """
+                ALTER TABLE member_stats
+                ADD COLUMN eden_cases INTEGER NOT NULL DEFAULT 0
+                """
+            )
+
+            print("[DB] Добавлена колонка eden_cases")
 
         # Поддержка старой базы,
         # созданной до появления XP.

@@ -32,7 +32,7 @@ class EconomyAdmin(commands.Cog):
 
     @app_commands.command(
         name="addxp",
-        description="Добавить XP пользователю для теста"
+        description="Добавить XP пользователю для теста",
     )
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(
@@ -44,11 +44,21 @@ class EconomyAdmin(commands.Cog):
         user: discord.Member,
         amount: app_commands.Range[int, 1, 1000000],
     ):
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
         new_xp, new_level, cases_gained = await add_xp(
             guild_id=interaction.guild.id,
             user_id=user.id,
             amount=amount,
         )
+
+        if cases_gained > 0:
+            await sync_level_role(
+                member=user,
+                level=new_level,
+            )
 
         if cases_gained > 0:
             reward_text = (
@@ -58,7 +68,7 @@ class EconomyAdmin(commands.Cog):
         else:
             reward_text = ""
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             (
                 f"Добавлено **{amount} XP** "
                 f"для {user.mention}.\n\n"

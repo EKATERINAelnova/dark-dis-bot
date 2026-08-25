@@ -121,6 +121,7 @@ EXTENSIONS = [
     "cogs.welcome.banner",
     "cogs.welcome.welcome",
     "cogs.moderation.economy_admin",
+    "cogs.rituals.achievements",
 ]
 
 

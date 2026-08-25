@@ -58,6 +58,11 @@ async def sync_level_role(
             name=target_name,
         )
 
+        if target_role is None:
+            raise RuntimeError(
+                f"Не найдена роль {target_name}"
+            )
+
     # Удаляем старые level-роли
     roles_to_remove = [
         role
