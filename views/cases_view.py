@@ -115,6 +115,10 @@ class CasesView(discord.ui.View):
     # =====================================================
     # OPEN
     # =====================================================
+    @discord.ui.button(
+        label="OPEN",
+        style=discord.ButtonStyle.secondary,
+    )
     async def open_button(
         self,
         interaction: discord.Interaction,
@@ -182,6 +186,9 @@ class CasesView(discord.ui.View):
                     print(
                         f"[LEVEL ROLE] {error}"
                     )
-
+            await check_achievements(
+                guild_id=self.guild_id,
+                user_id=self.player_id,
+            )
         finally:
             self.processing = False
