@@ -131,6 +131,20 @@ async def init_db() -> None:
             )
             """
         )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_rituals (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                last_ritual_at INTEGER NOT NULL DEFAULT 0,
+
+                PRIMARY KEY (
+                    guild_id,
+                    user_id
+                )
+            )
+            """
+        )
 
         # =====================================================
         # MIGRATION: XP
