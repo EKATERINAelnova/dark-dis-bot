@@ -9,8 +9,9 @@ from database.member_stats import get_member_stats
 
 from services.achievements import (
     ACHIEVEMENTS,
+    check_achievements,
     get_achievement_value,
-    get_achievement_progress,
+    get_unlocked_achievement_keys,
 )
 
 from utils.embeds import eden_embed
