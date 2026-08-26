@@ -310,7 +310,10 @@ class Activity(commands.Cog):
                         print(
                             f"[LEVEL ROLE] {error}"
                         )
-
+        await check_achievements(
+            guild_id=guild_id,
+            user_id=user_id,
+        )
         # Не ставим просто `now`.
         #
         # Например:
