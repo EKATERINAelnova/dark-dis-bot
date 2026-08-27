@@ -146,6 +146,52 @@ async def init_db() -> None:
             """
         )
 
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS activities (
+                activity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                guild_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+
+                host_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+
+                max_participants INTEGER,
+                starts_at INTEGER,
+
+                channel_id INTEGER,
+                message_id INTEGER,
+
+                created_at INTEGER NOT NULL
+            )
+            """
+        )
+
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS activity_participants (
+                activity_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+
+                role TEXT NOT NULL DEFAULT 'participant',
+                joined_at INTEGER NOT NULL,
+
+                PRIMARY KEY (
+                    activity_id,
+                    user_id
+                ),
+
+                FOREIGN KEY (activity_id)
+                    REFERENCES activities(activity_id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
+
         # =====================================================
         # MIGRATION: XP
         # =====================================================
@@ -236,6 +282,17 @@ async def init_db() -> None:
                 guild_id,
                 user_id,
                 created_at
+            )
+            """
+        )
+
+        await db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_activities_guild_status
+            ON activities (
+                guild_id,
+                status
             )
             """
         )
