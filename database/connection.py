@@ -192,6 +192,31 @@ async def init_db() -> None:
             """
         )
 
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS activity_payouts (
+                activity_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+
+                reward_key TEXT NOT NULL,
+                reward_kind TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+
+                actor_id INTEGER,
+                granted_at INTEGER NOT NULL,
+
+                PRIMARY KEY (
+                    activity_id,
+                    user_id,
+                    reward_key
+                ),
+
+                FOREIGN KEY (activity_id)
+                    REFERENCES activities(activity_id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
         # =====================================================
         # MIGRATION: XP
         # =====================================================

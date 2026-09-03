@@ -124,6 +124,7 @@ EXTENSIONS = [
     "cogs.rituals.achievements",
     "cogs.rituals.rituals",
     "cogs.events.events",
+    "cogs.events.duels",
 ]
 
 

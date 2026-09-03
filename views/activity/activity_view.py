@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 
 from services.activities import (
@@ -66,7 +68,6 @@ def build_activity_embed(
         count_text = str(
             len(participants)
         )
-
     else:
         count_text = (
             f"{len(participants)} / "
@@ -98,7 +99,6 @@ def build_activity_embed(
                 f"\nи ещё "
                 f"{len(participants) - 15}..."
             )
-
     else:
         participant_text = (
             "Сад пока пуст."
@@ -131,6 +131,12 @@ class ActivityView(
         )
 
         self.activity_id = activity_id
+
+        # Не даём двум кликам одновременно
+        # перезаписать карточку.
+        self.action_lock = (
+            asyncio.Lock()
+        )
 
     def disable_buttons(
         self,
@@ -177,72 +183,69 @@ class ActivityView(
         if interaction.guild is None:
             return
 
-        result = await join_activity(
-            guild_id=interaction.guild.id,
-            activity_id=self.activity_id,
-            user_id=interaction.user.id,
-        )
-
-        if result == "already_joined":
-            await interaction.response.send_message(
-                "Ты уже участвуешь.",
-                ephemeral=True,
+        async with self.action_lock:
+            result = await join_activity(
+                guild_id=interaction.guild.id,
+                activity_id=self.activity_id,
+                user_id=interaction.user.id,
             )
 
-            return
+            if result == "already_joined":
+                await interaction.response.send_message(
+                    "Ты уже участвуешь.",
+                    ephemeral=True,
+                )
+                return
 
-        if result == "full":
-            await interaction.response.send_message(
-                "Свободных мест больше нет.",
-                ephemeral=True,
-            )
+            if result == "full":
+                await interaction.response.send_message(
+                    "Свободных мест больше нет.",
+                    ephemeral=True,
+                )
+                return
 
-            return
-
-        if result in {
-            "closed",
-            "not_found",
-        }:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    title="Активность недоступна",
-                    description=(
-                        "К этой активности "
-                        "уже нельзя присоединиться."
+            if result in {
+                "closed",
+                "not_found",
+            }:
+                await interaction.response.send_message(
+                    embed=error_embed(
+                        title="Активность недоступна",
+                        description=(
+                            "К этой активности "
+                            "уже нельзя присоединиться."
+                        ),
                     ),
-                ),
-                ephemeral=True,
+                    ephemeral=True,
+                )
+                return
+
+            activity, participants = (
+                await self.get_state(
+                    interaction
+                )
             )
 
-            return
-
-        activity, participants = (
-            await self.get_state(
-                interaction
-            )
-        )
-
-        if activity is None:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    title="Активность не найдена",
-                    description=(
-                        "Не удалось обновить "
-                        "карточку активности."
+            if activity is None:
+                await interaction.response.send_message(
+                    embed=error_embed(
+                        title="Активность не найдена",
+                        description=(
+                            "Не удалось обновить "
+                            "карточку активности."
+                        ),
                     ),
+                    ephemeral=True,
+                )
+                return
+
+            await interaction.response.edit_message(
+                embed=build_activity_embed(
+                    activity,
+                    participants,
                 ),
-                ephemeral=True,
+                view=self,
             )
-
-            return
-
-        await interaction.response.edit_message(
-            embed=build_activity_embed(
-                activity,
-                participants,
-            ),
-            view=self,
-        )
 
     @discord.ui.button(
         label="LEAVE",
@@ -257,61 +260,59 @@ class ActivityView(
         if interaction.guild is None:
             return
 
-        result = await leave_activity(
-            guild_id=interaction.guild.id,
-            activity_id=self.activity_id,
-            user_id=interaction.user.id,
-        )
-
-        if result == "not_joined":
-            await interaction.response.send_message(
-                "Тебя нет среди участников.",
-                ephemeral=True,
+        async with self.action_lock:
+            result = await leave_activity(
+                guild_id=interaction.guild.id,
+                activity_id=self.activity_id,
+                user_id=interaction.user.id,
             )
 
-            return
+            if result == "not_joined":
+                await interaction.response.send_message(
+                    "Тебя нет среди участников.",
+                    ephemeral=True,
+                )
+                return
 
-        if result in {
-            "closed",
-            "not_found",
-        }:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    title="Активность недоступна",
-                    description=(
-                        "Список участников "
-                        "уже закрыт."
+            if result in {
+                "closed",
+                "not_found",
+            }:
+                await interaction.response.send_message(
+                    embed=error_embed(
+                        title="Активность недоступна",
+                        description=(
+                            "Список участников "
+                            "уже закрыт."
+                        ),
                     ),
-                ),
-                ephemeral=True,
+                    ephemeral=True,
+                )
+                return
+
+            activity, participants = (
+                await self.get_state(
+                    interaction
+                )
             )
 
-            return
-
-        activity, participants = (
-            await self.get_state(
-                interaction
-            )
-        )
-
-        if activity is None:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    title="Активность не найдена",
-                    description=(
-                        "Не удалось обновить "
-                        "карточку активности."
+            if activity is None:
+                await interaction.response.send_message(
+                    embed=error_embed(
+                        title="Активность не найдена",
+                        description=(
+                            "Не удалось обновить "
+                            "карточку активности."
+                        ),
                     ),
+                    ephemeral=True,
+                )
+                return
+
+            await interaction.response.edit_message(
+                embed=build_activity_embed(
+                    activity,
+                    participants,
                 ),
-                ephemeral=True,
+                view=self,
             )
-
-            return
-
-        await interaction.response.edit_message(
-            embed=build_activity_embed(
-                activity,
-                participants,
-            ),
-            view=self,
-        )
