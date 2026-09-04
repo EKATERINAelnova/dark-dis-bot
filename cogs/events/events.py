@@ -7,6 +7,11 @@ from config.economy import (
     CURRENCY_SYMBOL,
 )
 
+from cogs.events.common import (
+    fetch_activity_message,
+    get_activity_for_command,
+)
+
 from services.achievements import (
     check_achievements,
 )
@@ -15,7 +20,6 @@ from services.activities import (
     Activity,
     change_activity_status,
     create_activity,
-    get_activity,
     get_activity_participants,
     get_open_activities,
     set_activity_message,
@@ -42,15 +46,23 @@ class Events(commands.Cog):
     ):
         self.bot = bot
 
+    # =========================================================
+    # RESTORE
+    # =========================================================
+
     async def cog_load(
         self,
     ) -> None:
-        activities = await get_open_activities()
+        await self.restore_open_events()
+
+    async def restore_open_events(
+        self,
+    ) -> None:
+        activities = await get_open_activities(
+            activity_type="event"
+        )
 
         for activity in activities:
-            if activity.type != "event":
-                continue
-
             if activity.message_id is None:
                 continue
 
@@ -61,39 +73,20 @@ class Events(commands.Cog):
                 message_id=activity.message_id,
             )
 
+    # =========================================================
+    # MESSAGE
+    # =========================================================
+
     async def refresh_activity_message(
         self,
         activity: Activity,
     ) -> None:
-        if (
-            activity.channel_id is None
-            or activity.message_id is None
-        ):
-            return
-
-        channel = self.bot.get_channel(
-            activity.channel_id
+        message = await fetch_activity_message(
+            self.bot,
+            activity,
         )
 
-        if channel is None:
-            return
-
-        if not hasattr(
-            channel,
-            "fetch_message",
-        ):
-            return
-
-        try:
-            message = await channel.fetch_message(
-                activity.message_id
-            )
-
-        except (
-            discord.NotFound,
-            discord.Forbidden,
-            discord.HTTPException,
-        ):
+        if message is None:
             return
 
         participants = (
@@ -116,6 +109,10 @@ class Events(commands.Cog):
             ),
             view=view,
         )
+
+    # =========================================================
+    # CREATE
+    # =========================================================
 
     @app_commands.command(
         name="event-create",
@@ -141,14 +138,22 @@ class Events(commands.Cog):
 
         await interaction.response.defer()
 
-        activity = await create_activity(
-            guild_id=interaction.guild.id,
-            activity_type="event",
-            title=title,
-            description=description,
-            host_id=interaction.user.id,
-            max_participants=max_participants,
-        )
+        try:
+            activity = await create_activity(
+                guild_id=interaction.guild.id,
+                activity_type="event",
+                title=title,
+                description=description,
+                host_id=interaction.user.id,
+                max_participants=max_participants,
+            )
+
+        except ValueError as error:
+            await interaction.followup.send(
+                str(error),
+                ephemeral=True,
+            )
+            return
 
         view = ActivityView(
             activity_id=activity.activity_id
@@ -159,18 +164,42 @@ class Events(commands.Cog):
             participants=[],
         )
 
-        message = await interaction.followup.send(
-            embed=embed,
-            view=view,
-            wait=True,
-        )
+        try:
+            message = await interaction.followup.send(
+                embed=embed,
+                view=view,
+                wait=True,
+            )
 
-        await set_activity_message(
-            guild_id=interaction.guild.id,
-            activity_id=activity.activity_id,
-            channel_id=message.channel.id,
-            message_id=message.id,
-        )
+            await set_activity_message(
+                guild_id=interaction.guild.id,
+                activity_id=activity.activity_id,
+                channel_id=message.channel.id,
+                message_id=message.id,
+            )
+
+        except Exception as error:
+            await change_activity_status(
+                guild_id=interaction.guild.id,
+                activity_id=activity.activity_id,
+                new_status="cancelled",
+            )
+
+            print(
+                f"[EVENT CREATE] {error}"
+            )
+
+            await interaction.followup.send(
+                (
+                    "Не удалось опубликовать EVENT. "
+                    "Он был отменён."
+                ),
+                ephemeral=True,
+            )
+
+    # =========================================================
+    # START
+    # =========================================================
 
     @app_commands.command(
         name="event-start",
@@ -192,22 +221,16 @@ class Events(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="event",
         )
 
-        if (
-            activity is None
-            or activity.type != "event"
-        ):
-            await interaction.followup.send(
-                "Такой EVENT не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
-        result, activity = (
+        status, activity = (
             await change_activity_status(
                 guild_id=interaction.guild.id,
                 activity_id=activity_id,
@@ -216,11 +239,14 @@ class Events(commands.Cog):
         )
 
         if (
-            result != "changed"
+            status != "changed"
             or activity is None
         ):
             await interaction.followup.send(
-                "Этот EVENT уже нельзя запустить.",
+                (
+                    "Этот EVENT уже нельзя "
+                    "запустить."
+                ),
                 ephemeral=True,
             )
             return
@@ -230,9 +256,16 @@ class Events(commands.Cog):
         )
 
         await interaction.followup.send(
-            f"EVENT **#{activity_id}** запущен.",
+            (
+                f"EVENT **#{activity_id}** "
+                f"запущен."
+            ),
             ephemeral=True,
         )
+
+    # =========================================================
+    # FINISH
+    # =========================================================
 
     @app_commands.command(
         name="event-finish",
@@ -254,22 +287,16 @@ class Events(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="event",
         )
 
-        if (
-            activity is None
-            or activity.type != "event"
-        ):
-            await interaction.followup.send(
-                "Такой EVENT не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
-        result, activity = (
+        status, activity = (
             await change_activity_status(
                 guild_id=interaction.guild.id,
                 activity_id=activity_id,
@@ -278,11 +305,14 @@ class Events(commands.Cog):
         )
 
         if (
-            result != "changed"
+            status != "changed"
             or activity is None
         ):
             await interaction.followup.send(
-                "Сначала EVENT должен быть запущен.",
+                (
+                    "Сначала EVENT должен "
+                    "быть запущен."
+                ),
                 ephemeral=True,
             )
             return
@@ -292,9 +322,16 @@ class Events(commands.Cog):
         )
 
         await interaction.followup.send(
-            f"EVENT **#{activity_id}** завершён.",
+            (
+                f"EVENT **#{activity_id}** "
+                f"завершён."
+            ),
             ephemeral=True,
         )
+
+    # =========================================================
+    # CANCEL
+    # =========================================================
 
     @app_commands.command(
         name="event-cancel",
@@ -316,22 +353,16 @@ class Events(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="event",
         )
 
-        if (
-            activity is None
-            or activity.type != "event"
-        ):
-            await interaction.followup.send(
-                "Такой EVENT не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
-        result, activity = (
+        status, activity = (
             await change_activity_status(
                 guild_id=interaction.guild.id,
                 activity_id=activity_id,
@@ -340,7 +371,7 @@ class Events(commands.Cog):
         )
 
         if (
-            result != "changed"
+            status != "changed"
             or activity is None
         ):
             await interaction.followup.send(
@@ -357,9 +388,16 @@ class Events(commands.Cog):
         )
 
         await interaction.followup.send(
-            f"EVENT **#{activity_id}** отменён.",
+            (
+                f"EVENT **#{activity_id}** "
+                f"отменён."
+            ),
             ephemeral=True,
         )
+
+    # =========================================================
+    # REWARD
+    # =========================================================
 
     @app_commands.command(
         name="event-reward",
@@ -403,19 +441,13 @@ class Events(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="event",
         )
 
-        if (
-            activity is None
-            or activity.type != "event"
-        ):
-            await interaction.followup.send(
-                "Такой EVENT не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
         if activity.status != "finished":
@@ -473,67 +505,34 @@ class Events(commands.Cog):
         ]
 
         if kind == "xp":
-            for result in granted:
-                await check_achievements(
-                    guild_id=interaction.guild.id,
-                    user_id=result.user_id,
-                )
-
-                if (
-                    result.cases_gained > 0
-                    and result.new_level is not None
-                ):
-                    member = (
-                        interaction.guild.get_member(
-                            result.user_id
-                        )
-                    )
-
-                    if member is not None:
-                        try:
-                            await sync_level_role(
-                                member=member,
-                                level=result.new_level,
-                            )
-
-                        except (
-                            discord.HTTPException,
-                            RuntimeError,
-                        ) as error:
-                            print(
-                                f"[LEVEL ROLE] {error}"
-                            )
-
-        if kind == "currency":
-            reward_text = (
-                f"{amount} {CURRENCY_SYMBOL}"
+            await self.process_xp_rewards(
+                interaction=interaction,
+                results=granted,
             )
 
-        elif kind == "xp":
-            reward_text = (
-                f"{amount} XP"
-            )
-
-        else:
-            reward_text = (
-                f"{amount} EDEN CASE"
-            )
+        reward_text = self.format_reward(
+            kind=kind,
+            amount=amount,
+        )
 
         if not granted:
             await interaction.followup.send(
                 (
                     f"Награда **{reward_text}** "
                     f"уже была выдана всем "
-                    f"участникам EVENT #{activity_id}."
+                    f"участникам EVENT "
+                    f"#{activity_id}."
                 ),
                 ephemeral=True,
             )
             return
 
         text = (
-            f"Участникам EVENT **#{activity_id}** "
-            f"выдано **{reward_text}**.\n\n"
-            f"Получили сейчас: **{len(granted)}**"
+            f"Участникам EVENT "
+            f"**#{activity_id}** выдано "
+            f"**{reward_text}**.\n\n"
+            f"Получили сейчас: "
+            f"**{len(granted)}**"
         )
 
         if already_granted:
@@ -545,6 +544,71 @@ class Events(commands.Cog):
         await interaction.followup.send(
             text,
             ephemeral=True,
+        )
+
+    # =========================================================
+    # REWARD HELPERS
+    # =========================================================
+
+    async def process_xp_rewards(
+        self,
+        interaction: discord.Interaction,
+        results,
+    ) -> None:
+        if interaction.guild is None:
+            return
+
+        for result in results:
+            await check_achievements(
+                guild_id=interaction.guild.id,
+                user_id=result.user_id,
+            )
+
+            if (
+                result.cases_gained <= 0
+                or result.new_level is None
+            ):
+                continue
+
+            member = interaction.guild.get_member(
+                result.user_id
+            )
+
+            if member is None:
+                continue
+
+            try:
+                await sync_level_role(
+                    member=member,
+                    level=result.new_level,
+                )
+
+            except (
+                discord.HTTPException,
+                RuntimeError,
+            ) as error:
+                print(
+                    f"[LEVEL ROLE] {error}"
+                )
+
+    @staticmethod
+    def format_reward(
+        kind: str,
+        amount: int,
+    ) -> str:
+        if kind == "currency":
+            return (
+                f"{amount} "
+                f"{CURRENCY_SYMBOL}"
+            )
+
+        if kind == "xp":
+            return (
+                f"{amount} XP"
+            )
+
+        return (
+            f"{amount} EDEN CASE"
         )
 
 
