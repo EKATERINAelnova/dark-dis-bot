@@ -3,17 +3,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config.economy import (
-    CURRENCY_SYMBOL,
-)
-
 from cogs.events.common import (
     fetch_activity_message,
     get_activity_for_command,
 )
 
-from services.achievements import (
-    check_achievements,
+from cogs.events.reward_helpers import (
+    format_reward,
+    process_xp_rewards,
 )
 
 from services.activities import (
@@ -27,10 +24,6 @@ from services.activities import (
 
 from services.activity_rewards import (
     reward_activity_participants,
-)
-
-from services.level_roles import (
-    sync_level_role,
 )
 
 from views.activity.activity_view import (
@@ -505,12 +498,12 @@ class Events(commands.Cog):
         ]
 
         if kind == "xp":
-            await self.process_xp_rewards(
-                interaction=interaction,
+            await process_xp_rewards(
+                guild=interaction.guild,
                 results=granted,
             )
 
-        reward_text = self.format_reward(
+        reward_text = format_reward(
             kind=kind,
             amount=amount,
         )
@@ -544,71 +537,6 @@ class Events(commands.Cog):
         await interaction.followup.send(
             text,
             ephemeral=True,
-        )
-
-    # =========================================================
-    # REWARD HELPERS
-    # =========================================================
-
-    async def process_xp_rewards(
-        self,
-        interaction: discord.Interaction,
-        results,
-    ) -> None:
-        if interaction.guild is None:
-            return
-
-        for result in results:
-            await check_achievements(
-                guild_id=interaction.guild.id,
-                user_id=result.user_id,
-            )
-
-            if (
-                result.cases_gained <= 0
-                or result.new_level is None
-            ):
-                continue
-
-            member = interaction.guild.get_member(
-                result.user_id
-            )
-
-            if member is None:
-                continue
-
-            try:
-                await sync_level_role(
-                    member=member,
-                    level=result.new_level,
-                )
-
-            except (
-                discord.HTTPException,
-                RuntimeError,
-            ) as error:
-                print(
-                    f"[LEVEL ROLE] {error}"
-                )
-
-    @staticmethod
-    def format_reward(
-        kind: str,
-        amount: int,
-    ) -> str:
-        if kind == "currency":
-            return (
-                f"{amount} "
-                f"{CURRENCY_SYMBOL}"
-            )
-
-        if kind == "xp":
-            return (
-                f"{amount} XP"
-            )
-
-        return (
-            f"{amount} EDEN CASE"
         )
 
 
