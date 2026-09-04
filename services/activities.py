@@ -535,6 +535,7 @@ async def set_activity_message(
 
 async def get_open_activities(
     guild_id: int | None = None,
+    activity_type: str | None = None,
 ) -> list[Activity]:
     query = """
         SELECT
@@ -566,6 +567,19 @@ async def get_open_activities(
             guild_id
         )
 
+    if activity_type is not None:
+        query += (
+            " AND type = ?"
+        )
+
+        params.append(
+            activity_type
+        )
+
+    query += (
+        " ORDER BY activity_id ASC"
+    )
+
     async with get_db() as db:
         cursor = await db.execute(
             query,
@@ -576,8 +590,6 @@ async def get_open_activities(
         await cursor.close()
 
     return [
-        activity_from_row(
-            row
-        )
+        activity_from_row(row)
         for row in rows
     ]

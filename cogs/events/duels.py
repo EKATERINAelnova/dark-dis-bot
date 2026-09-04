@@ -13,10 +13,15 @@ from services.activities import (
 
 from services.duels import (
     create_duel,
+    discard_duel_result,
     get_duel_players,
+    get_duel_result,
+    get_pending_duel_results,
+    propose_duel_result,
 )
 
 from views.activity.duel_view import (
+    DuelResultView,
     DuelView,
     build_duel_embed,
 )
@@ -32,6 +37,7 @@ class Duels(commands.Cog):
     async def cog_load(
         self,
     ) -> None:
+        # Восстанавливаем непринятые вызовы
         activities = await get_open_activities()
 
         for activity in activities:
@@ -59,27 +65,54 @@ class Duels(commands.Cog):
                 message_id=activity.message_id,
             )
 
+        # Восстанавливаем результаты,
+        # ожидающие подтверждения
+        pending_results = (
+            await get_pending_duel_results()
+        )
+
+        for result in pending_results:
+            activity = await get_activity(
+                guild_id=result.guild_id,
+                activity_id=result.activity_id,
+            )
+
+            if (
+                activity is None
+                or activity.message_id is None
+            ):
+                continue
+
+            players = await get_duel_players(
+                activity.activity_id
+            )
+
+            if players is None:
+                continue
+
+            challenger_id, opponent_id = players
+
+            self.bot.add_view(
+                DuelResultView(
+                    activity_id=activity.activity_id,
+                    challenger_id=challenger_id,
+                    opponent_id=opponent_id,
+                    winner_id=result.winner_id,
+                    submitted_by=result.submitted_by,
+                ),
+                message_id=activity.message_id,
+            )
+
     async def refresh_duel_message(
         self,
         activity: Activity,
     ) -> None:
-        if (
-            activity.channel_id is None
-            or activity.message_id is None
-        ):
-            return
-
-        channel = self.bot.get_channel(
-            activity.channel_id
+        message = await fetch_activity_message(
+            self.bot,
+            activity,
         )
 
-        if channel is None:
-            return
-
-        if not hasattr(
-            channel,
-            "fetch_message",
-        ):
+        if message is None:
             return
 
         players = await get_duel_players(
@@ -91,17 +124,9 @@ class Duels(commands.Cog):
 
         challenger_id, opponent_id = players
 
-        try:
-            message = await channel.fetch_message(
-                activity.message_id
-            )
-
-        except (
-            discord.NotFound,
-            discord.Forbidden,
-            discord.HTTPException,
-        ):
-            return
+        result = await get_duel_result(
+            activity.activity_id
+        )
 
         view = None
 
@@ -112,12 +137,26 @@ class Duels(commands.Cog):
                 opponent_id=opponent_id,
             )
 
+        elif (
+            activity.status == "running"
+            and result is not None
+            and result.status == "pending"
+        ):
+            view = DuelResultView(
+                activity_id=activity.activity_id,
+                challenger_id=challenger_id,
+                opponent_id=opponent_id,
+                winner_id=result.winner_id,
+                submitted_by=result.submitted_by,
+            )
+
         await message.edit(
             content=None,
             embed=build_duel_embed(
                 activity=activity,
                 challenger_id=challenger_id,
                 opponent_id=opponent_id,
+                result=result,
             ),
             view=view,
         )
@@ -267,6 +306,7 @@ class Duels(commands.Cog):
                     await message.edit(
                         view=None
                     )
+
                 except discord.HTTPException:
                     pass
 
@@ -287,6 +327,125 @@ class Duels(commands.Cog):
             (
                 f"DUEL **#{activity.activity_id}** "
                 f"создан."
+            ),
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="duel-result",
+        description="Предложить результат дуэли",
+    )
+    @app_commands.guild_only()
+    async def duel_result(
+        self,
+        interaction: discord.Interaction,
+        activity_id: int,
+        winner: discord.Member,
+    ):
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        activity = await get_activity(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+        )
+
+        if (
+            activity is None
+            or activity.type != "duel"
+        ):
+            await interaction.followup.send(
+                "Такой DUEL не найден.",
+                ephemeral=True,
+            )
+            return
+
+        if activity.status != "running":
+            await interaction.followup.send(
+                (
+                    "Результат можно указать "
+                    "только для активной дуэли."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        players = await get_duel_players(
+            activity_id
+        )
+
+        if players is None:
+            await interaction.followup.send(
+                "Не удалось получить участников.",
+                ephemeral=True,
+            )
+            return
+
+        challenger_id, opponent_id = players
+
+        if interaction.user.id not in players:
+            await interaction.followup.send(
+                (
+                    "Указать результат может "
+                    "только участник дуэли."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        if winner.id not in players:
+            await interaction.followup.send(
+                (
+                    "Победителем должен быть "
+                    "один из участников."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        status, result = (
+            await propose_duel_result(
+                guild_id=interaction.guild.id,
+                activity_id=activity_id,
+                winner_id=winner.id,
+                submitted_by=interaction.user.id,
+            )
+        )
+
+        if status == "already_pending":
+            await interaction.followup.send(
+                (
+                    "Результат этой дуэли уже "
+                    "ожидает подтверждения."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        if (
+            status != "created"
+            or result is None
+        ):
+            await interaction.followup.send(
+                "Не удалось сохранить результат.",
+                ephemeral=True,
+            )
+            return
+
+        await self.refresh_duel_message(
+            activity
+        )
+
+        await interaction.followup.send(
+            (
+                f"Победителем указан "
+                f"{winner.mention}.\n"
+                f"Теперь второй участник должен "
+                f"подтвердить результат."
             ),
             ephemeral=True,
         )
@@ -353,6 +512,13 @@ class Duels(commands.Cog):
                 ephemeral=True,
             )
             return
+
+        # Если результат ожидал подтверждения,
+        # убираем его.
+        await discard_duel_result(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+        )
 
         await self.refresh_duel_message(
             activity

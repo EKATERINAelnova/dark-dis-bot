@@ -9,7 +9,6 @@ from services.activities import (
     get_activity,
 )
 
-
 @dataclass(frozen=True)
 class DuelCreateResult:
     status: str
