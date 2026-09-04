@@ -3,6 +3,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.events.common import (
+    fetch_activity_message,
+    get_activity_for_command,
+)
+
 from services.activities import (
     Activity,
     change_activity_status,
@@ -34,16 +39,24 @@ class Duels(commands.Cog):
     ):
         self.bot = bot
 
+    # =========================================================
+    # RESTORE VIEWS
+    # =========================================================
+
     async def cog_load(
         self,
     ) -> None:
-        # Восстанавливаем непринятые вызовы
-        activities = await get_open_activities()
+        await self.restore_open_duels()
+        await self.restore_pending_results()
+
+    async def restore_open_duels(
+        self,
+    ) -> None:
+        activities = await get_open_activities(
+            activity_type="duel"
+        )
 
         for activity in activities:
-            if activity.type != "duel":
-                continue
-
             if activity.message_id is None:
                 continue
 
@@ -65,13 +78,12 @@ class Duels(commands.Cog):
                 message_id=activity.message_id,
             )
 
-        # Восстанавливаем результаты,
-        # ожидающие подтверждения
-        pending_results = (
-            await get_pending_duel_results()
-        )
+    async def restore_pending_results(
+        self,
+    ) -> None:
+        results = await get_pending_duel_results()
 
-        for result in pending_results:
+        for result in results:
             activity = await get_activity(
                 guild_id=result.guild_id,
                 activity_id=result.activity_id,
@@ -102,6 +114,10 @@ class Duels(commands.Cog):
                 ),
                 message_id=activity.message_id,
             )
+
+    # =========================================================
+    # MESSAGE
+    # =========================================================
 
     async def refresh_duel_message(
         self,
@@ -160,6 +176,10 @@ class Duels(commands.Cog):
             ),
             view=view,
         )
+
+    # =========================================================
+    # CREATE DUEL
+    # =========================================================
 
     @app_commands.command(
         name="duel",
@@ -280,10 +300,12 @@ class Duels(commands.Cog):
                 content=opponent.mention,
                 embed=embed,
                 view=view,
-                allowed_mentions=discord.AllowedMentions(
-                    users=[
-                        opponent
-                    ]
+                allowed_mentions=(
+                    discord.AllowedMentions(
+                        users=[
+                            opponent
+                        ]
+                    )
                 ),
             )
 
@@ -331,6 +353,10 @@ class Duels(commands.Cog):
             ephemeral=True,
         )
 
+    # =========================================================
+    # RESULT
+    # =========================================================
+
     @app_commands.command(
         name="duel-result",
         description="Предложить результат дуэли",
@@ -349,19 +375,13 @@ class Duels(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="duel",
         )
 
-        if (
-            activity is None
-            or activity.type != "duel"
-        ):
-            await interaction.followup.send(
-                "Такой DUEL не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
         if activity.status != "running":
@@ -380,12 +400,13 @@ class Duels(commands.Cog):
 
         if players is None:
             await interaction.followup.send(
-                "Не удалось получить участников.",
+                (
+                    "Не удалось получить "
+                    "участников DUEL."
+                ),
                 ephemeral=True,
             )
             return
-
-        challenger_id, opponent_id = players
 
         if interaction.user.id not in players:
             await interaction.followup.send(
@@ -426,6 +447,16 @@ class Duels(commands.Cog):
             )
             return
 
+        if status == "not_running":
+            await interaction.followup.send(
+                (
+                    "Эта дуэль уже "
+                    "не находится в процессе."
+                ),
+                ephemeral=True,
+            )
+            return
+
         if (
             status != "created"
             or result is None
@@ -444,11 +475,15 @@ class Duels(commands.Cog):
             (
                 f"Победителем указан "
                 f"{winner.mention}.\n"
-                f"Теперь второй участник должен "
+                f"Второй участник должен "
                 f"подтвердить результат."
             ),
             ephemeral=True,
         )
+
+    # =========================================================
+    # CANCEL
+    # =========================================================
 
     @app_commands.command(
         name="duel-cancel",
@@ -470,19 +505,13 @@ class Duels(commands.Cog):
             ephemeral=True
         )
 
-        activity = await get_activity(
-            guild_id=interaction.guild.id,
+        activity = await get_activity_for_command(
+            interaction=interaction,
             activity_id=activity_id,
+            activity_type="duel",
         )
 
-        if (
-            activity is None
-            or activity.type != "duel"
-        ):
-            await interaction.followup.send(
-                "Такой DUEL не найден.",
-                ephemeral=True,
-            )
+        if activity is None:
             return
 
         if activity.status not in {
@@ -495,7 +524,7 @@ class Duels(commands.Cog):
             )
             return
 
-        result, activity = (
+        status, activity = (
             await change_activity_status(
                 guild_id=interaction.guild.id,
                 activity_id=activity_id,
@@ -504,7 +533,7 @@ class Duels(commands.Cog):
         )
 
         if (
-            result != "changed"
+            status != "changed"
             or activity is None
         ):
             await interaction.followup.send(
@@ -513,8 +542,6 @@ class Duels(commands.Cog):
             )
             return
 
-        # Если результат ожидал подтверждения,
-        # убираем его.
         await discard_duel_result(
             guild_id=interaction.guild.id,
             activity_id=activity_id,
