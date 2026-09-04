@@ -194,6 +194,27 @@ async def init_db() -> None:
 
         await db.execute(
             """
+            CREATE TABLE IF NOT EXISTS activity_results (
+                activity_id INTEGER PRIMARY KEY,
+
+                winner_user_id INTEGER NOT NULL,
+                submitted_by INTEGER NOT NULL,
+                confirmed_by INTEGER,
+
+                status TEXT NOT NULL DEFAULT 'pending',
+
+                created_at INTEGER NOT NULL,
+                confirmed_at INTEGER,
+
+                FOREIGN KEY (activity_id)
+                    REFERENCES activities(activity_id)
+                    ON DELETE CASCADE
+            )
+            """
+        )
+
+        await db.execute(
+            """
             CREATE TABLE IF NOT EXISTS activity_payouts (
                 activity_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,

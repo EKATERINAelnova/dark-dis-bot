@@ -8,6 +8,13 @@ from services.activities import (
     get_activity,
 )
 
+from services.duels import (
+    DuelResult,
+    confirm_duel_result,
+    discard_duel_result,
+    get_duel_result,
+)
+
 from utils.embeds import (
     eden_embed,
     error_embed,
@@ -26,11 +33,19 @@ def build_duel_embed(
     activity: Activity,
     challenger_id: int,
     opponent_id: int,
+    result: DuelResult | None = None,
 ) -> discord.Embed:
     status = DUEL_STATUS_NAMES.get(
         activity.status,
         activity.status.upper(),
     )
+
+    if (
+        activity.status == "running"
+        and result is not None
+        and result.status == "pending"
+    ):
+        status = "RESULT PENDING"
 
     if activity.status == "open":
         description = (
@@ -39,26 +54,54 @@ def build_duel_embed(
             f"Ответ за соперником."
         )
 
+    elif (
+        activity.status == "running"
+        and result is not None
+        and result.status == "pending"
+    ):
+        description = (
+            f"<@{challenger_id}> ⚔ "
+            f"<@{opponent_id}>\n\n"
+            f"Предложенный победитель: "
+            f"<@{result.winner_id}>\n"
+            f"Ожидается подтверждение результата."
+        )
+
     elif activity.status == "running":
         description = (
-            f"<@{challenger_id}> "
-            f"⚔ "
+            f"<@{challenger_id}> ⚔ "
             f"<@{opponent_id}>\n\n"
             f"Дуэль началась."
         )
 
+    elif activity.status == "finished":
+        if (
+            result is not None
+            and result.status == "confirmed"
+        ):
+            description = (
+                f"<@{challenger_id}> ⚔ "
+                f"<@{opponent_id}>\n\n"
+                f"Победитель: "
+                f"<@{result.winner_id}>"
+            )
+        else:
+            description = (
+                f"<@{challenger_id}> ⚔ "
+                f"<@{opponent_id}>\n\n"
+                f"Дуэль завершена."
+            )
+
     elif activity.status == "cancelled":
         description = (
-            f"<@{challenger_id}> "
-            f"× "
+            f"<@{challenger_id}> × "
             f"<@{opponent_id}>\n\n"
             f"Вызов закрыт."
         )
 
     else:
         description = (
-            f"<@{challenger_id}> "
-            f"⚔ "
+            f"<@{challenger_id}> ⚔ "
             f"<@{opponent_id}>"
         )
 
@@ -86,17 +129,13 @@ def build_duel_embed(
     )
 
     embed.set_footer(
-        text=(
-            f"DUEL #{activity.activity_id}"
-        )
+        text=f"DUEL #{activity.activity_id}"
     )
 
     return embed
 
 
-class DuelView(
-    discord.ui.View
-):
+class DuelView(discord.ui.View):
     def __init__(
         self,
         activity_id: int,
@@ -111,9 +150,7 @@ class DuelView(
         self.challenger_id = challenger_id
         self.opponent_id = opponent_id
 
-        self.action_lock = (
-            asyncio.Lock()
-        )
+        self.action_lock = asyncio.Lock()
 
     async def get_duel(
         self,
@@ -322,6 +359,186 @@ class DuelView(
             ):
                 await interaction.response.send_message(
                     "Не удалось отменить вызов.",
+                    ephemeral=True,
+                )
+                return
+
+            await interaction.response.edit_message(
+                content=None,
+                embed=build_duel_embed(
+                    activity=activity,
+                    challenger_id=self.challenger_id,
+                    opponent_id=self.opponent_id,
+                ),
+                view=None,
+            )
+
+            self.stop()
+
+
+class DuelResultView(discord.ui.View):
+    def __init__(
+        self,
+        activity_id: int,
+        challenger_id: int,
+        opponent_id: int,
+        winner_id: int,
+        submitted_by: int,
+    ):
+        super().__init__(
+            timeout=None
+        )
+
+        self.activity_id = activity_id
+        self.challenger_id = challenger_id
+        self.opponent_id = opponent_id
+        self.winner_id = winner_id
+        self.submitted_by = submitted_by
+
+        self.action_lock = asyncio.Lock()
+
+    async def check_resolver(
+        self,
+        interaction: discord.Interaction,
+    ) -> bool:
+        if interaction.user.id == self.submitted_by:
+            await interaction.response.send_message(
+                (
+                    "Подтвердить собственный отчёт "
+                    "нельзя."
+                ),
+                ephemeral=True,
+            )
+            return False
+
+        other_player = (
+            self.opponent_id
+            if self.submitted_by == self.challenger_id
+            else self.challenger_id
+        )
+
+        permissions = getattr(
+            interaction.user,
+            "guild_permissions",
+            None,
+        )
+
+        is_admin = bool(
+            permissions
+            and permissions.manage_guild
+        )
+
+        if (
+            interaction.user.id != other_player
+            and not is_admin
+        ):
+            await interaction.response.send_message(
+                (
+                    "Подтвердить результат может "
+                    "второй участник или администратор."
+                ),
+                ephemeral=True,
+            )
+            return False
+
+        return True
+
+    @discord.ui.button(
+        label="CONFIRM",
+        style=discord.ButtonStyle.success,
+        custom_id="duel_result_confirm",
+    )
+    async def confirm_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ):
+        if interaction.guild is None:
+            return
+
+        if not await self.check_resolver(
+            interaction
+        ):
+            return
+
+        async with self.action_lock:
+            status, activity = (
+                await confirm_duel_result(
+                    guild_id=interaction.guild.id,
+                    activity_id=self.activity_id,
+                    confirmed_by=interaction.user.id,
+                )
+            )
+
+            if (
+                status != "confirmed"
+                or activity is None
+            ):
+                await interaction.response.send_message(
+                    (
+                        "Этот результат уже нельзя "
+                        "подтвердить."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            result = await get_duel_result(
+                self.activity_id
+            )
+
+            await interaction.response.edit_message(
+                content=None,
+                embed=build_duel_embed(
+                    activity=activity,
+                    challenger_id=self.challenger_id,
+                    opponent_id=self.opponent_id,
+                    result=result,
+                ),
+                view=None,
+            )
+
+            self.stop()
+
+    @discord.ui.button(
+        label="DISPUTE",
+        style=discord.ButtonStyle.danger,
+        custom_id="duel_result_dispute",
+    )
+    async def dispute_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ):
+        if interaction.guild is None:
+            return
+
+        if not await self.check_resolver(
+            interaction
+        ):
+            return
+
+        async with self.action_lock:
+            status = await discard_duel_result(
+                guild_id=interaction.guild.id,
+                activity_id=self.activity_id,
+            )
+
+            if status != "discarded":
+                await interaction.response.send_message(
+                    "Этот результат уже изменился.",
+                    ephemeral=True,
+                )
+                return
+
+            activity = await get_activity(
+                guild_id=interaction.guild.id,
+                activity_id=self.activity_id,
+            )
+
+            if activity is None:
+                await interaction.response.send_message(
+                    "DUEL не найден.",
                     ephemeral=True,
                 )
                 return
