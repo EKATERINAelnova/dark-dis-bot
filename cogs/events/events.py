@@ -33,6 +33,10 @@ from services.activity_rewards import (
     reward_activity_participants,
 )
 
+from services.achievements import (
+    check_activity_participant_achievements,
+)
+
 from services.automatic_activity_rewards import (
     reward_event_automatically,
 )
@@ -312,6 +316,11 @@ class Events(commands.Cog):
             await process_xp_rewards(
                 guild=interaction.guild,
                 results=reward_results,
+            )
+
+            await check_activity_participant_achievements(
+                guild_id=interaction.guild.id,
+                activity_id=activity_id,
             )
 
         except Exception as error:
