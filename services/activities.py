@@ -44,6 +44,7 @@ class Activity:
     channel_id: int | None
     message_id: int | None
 
+    reward_preset: str | None
     created_at: int
 
 
@@ -85,7 +86,12 @@ def activity_from_row(
             if row[10] is not None
             else None
         ),
-        created_at=int(row[11]),
+        reward_preset=(
+            str(row[11])
+            if row[11] is not None
+            else None
+        ),
+        created_at=int(row[12]),
     )
 
 
@@ -97,11 +103,31 @@ async def create_activity(
     host_id: int,
     max_participants: int | None = None,
     starts_at: int | None = None,
+    reward_preset: str | None = None,
 ) -> Activity:
+    activity_type = activity_type.strip().lower()
+    title = title.strip()
+    description = description.strip()
+
     if activity_type not in ACTIVITY_TYPES:
         raise ValueError(
             f"Неизвестный тип активности: "
             f"{activity_type}"
+        )
+
+    if not title:
+        raise ValueError(
+            "Название не может быть пустым"
+        )
+
+    if len(title) > 100:
+        raise ValueError(
+            "Название не может быть длиннее 100 символов"
+        )
+
+    if len(description) > 1500:
+        raise ValueError(
+            "Описание не может быть длиннее 1500 символов"
         )
 
     if (
@@ -128,9 +154,10 @@ async def create_activity(
                 status,
                 max_participants,
                 starts_at,
+                reward_preset,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 guild_id,
@@ -141,6 +168,7 @@ async def create_activity(
                 "open",
                 max_participants,
                 starts_at,
+                reward_preset,
                 now,
             ),
         )
@@ -187,6 +215,7 @@ async def get_activity(
                 starts_at,
                 channel_id,
                 message_id,
+                reward_preset,
                 created_at
             FROM activities
             WHERE guild_id = ?
@@ -275,10 +304,7 @@ async def join_activity(
                 await db.rollback()
                 return "not_found"
 
-            status = str(
-                row[0]
-            )
-
+            status = str(row[0])
             max_participants = (
                 int(row[1])
                 if row[1] is not None
@@ -324,11 +350,7 @@ async def join_activity(
                 count_row = await cursor.fetchone()
                 await cursor.close()
 
-                count = int(
-                    count_row[0]
-                )
-
-                if count >= max_participants:
+                if int(count_row[0]) >= max_participants:
                     await db.rollback()
                     return "full"
 
@@ -351,7 +373,6 @@ async def join_activity(
             )
 
             await db.commit()
-
             return "joined"
 
         except Exception:
@@ -406,9 +427,7 @@ async def leave_activity(
                 ),
             )
 
-            removed = (
-                cursor.rowcount > 0
-            )
+            removed = cursor.rowcount > 0
 
             await cursor.close()
             await db.commit()
@@ -452,15 +471,12 @@ async def change_activity_status(
 
             if row is None:
                 await db.rollback()
-
                 return (
                     "not_found",
                     None,
                 )
 
-            current_status = str(
-                row[0]
-            )
+            current_status = str(row[0])
 
             allowed = ACTIVITY_TRANSITIONS.get(
                 current_status,
@@ -469,7 +485,6 @@ async def change_activity_status(
 
             if new_status not in allowed:
                 await db.rollback()
-
                 return (
                     "invalid_transition",
                     None,
@@ -550,6 +565,7 @@ async def get_open_activities(
             starts_at,
             channel_id,
             message_id,
+            reward_preset,
             created_at
         FROM activities
         WHERE status = 'open'
@@ -559,26 +575,14 @@ async def get_open_activities(
     params = []
 
     if guild_id is not None:
-        query += (
-            " AND guild_id = ?"
-        )
-
-        params.append(
-            guild_id
-        )
+        query += " AND guild_id = ?"
+        params.append(guild_id)
 
     if activity_type is not None:
-        query += (
-            " AND type = ?"
-        )
+        query += " AND type = ?"
+        params.append(activity_type)
 
-        params.append(
-            activity_type
-        )
-
-    query += (
-        " ORDER BY activity_id ASC"
-    )
+    query += " ORDER BY activity_id ASC"
 
     async with get_db() as db:
         cursor = await db.execute(
