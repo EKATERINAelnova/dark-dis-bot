@@ -187,7 +187,7 @@ async def reward_duel_winner_automatically(
     activity_id: int,
     winner_id: int,
     actor_id: int | None = None,
-) -> tuple[str, list[ActivityRewardResult]]:
+) -> list[ActivityRewardResult]:
     status = await check_duel_reward_allowed(
         guild_id=guild_id,
         activity_id=activity_id,
@@ -195,10 +195,14 @@ async def reward_duel_winner_automatically(
     )
 
     if status != "allowed":
-        return (
-            status,
-            [],
-        )
+        return [
+            ActivityRewardResult(
+                status=status,
+                user_id=winner_id,
+                reward_kind="duel",
+                amount=0,
+            )
+        ]
 
     results = []
 
@@ -222,7 +226,4 @@ async def reward_duel_winner_automatically(
             result
         )
 
-    return (
-        "granted",
-        results,
-    )
+    return results
