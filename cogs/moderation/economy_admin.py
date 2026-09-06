@@ -27,12 +27,8 @@ class EconomyAdmin(commands.Cog):
     ):
         self.bot = bot
 
-    # =========================================================
-    # ADD FUNDS
-    # =========================================================
-
     @app_commands.command(
-        name="addxp",
+        name="добавить-опыт",
         description="Добавить XP пользователю для теста",
     )
     @app_commands.guild_only()
@@ -85,7 +81,7 @@ class EconomyAdmin(commands.Cog):
         )
 
     @app_commands.command(
-        name="addfunds",
+        name="добавить-средства",
         description="Добавить средства пользователю",
     )
     @app_commands.guild_only()
@@ -133,7 +129,7 @@ class EconomyAdmin(commands.Cog):
         )
 
     @app_commands.command(
-        name="synclevelrole",
+        name="обновить-роль-уровня",
         description="Обновить level-роль пользователя",
     )
     @app_commands.guild_only()
@@ -181,12 +177,8 @@ class EconomyAdmin(commands.Cog):
             ephemeral=True,
         )
 
-    # =========================================================
-    # REMOVE FUNDS
-    # =========================================================
-
     @app_commands.command(
-        name="removefunds",
+        name="снять-средства",
         description="Уменьшить средства пользователя",
     )
     @app_commands.guild_only()
@@ -218,10 +210,6 @@ class EconomyAdmin(commands.Cog):
             actor_id=interaction.user.id,
         )
 
-        # =====================================================
-        # INSUFFICIENT FUNDS
-        # =====================================================
-
         if new_balance is None:
             embed = error_embed(
                 title="Недостаточно средств",
@@ -239,10 +227,6 @@ class EconomyAdmin(commands.Cog):
             )
 
             return
-
-        # =====================================================
-        # SUCCESS
-        # =====================================================
 
         embed = success_embed(
             title="Баланс изменён",
