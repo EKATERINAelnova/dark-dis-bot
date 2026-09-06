@@ -16,7 +16,7 @@ class Fun(commands.Cog):
 
 
     @app_commands.command(
-        name="roll",
+        name="бросок",
         description="Бросить случайное число"
     )
     async def roll(
@@ -40,7 +40,7 @@ class Fun(commands.Cog):
         )
 
     @app_commands.command(
-        name="coin",
+        name="монета",
         description="Подбросить монетку"
     )
     async def coin(self, interaction: discord.Interaction):
@@ -60,7 +60,7 @@ class Fun(commands.Cog):
         )
 
     @app_commands.command(
-        name="casino",
+        name="казино",
         description="Азартные игры - это плохо"
     )
     async def casino(
