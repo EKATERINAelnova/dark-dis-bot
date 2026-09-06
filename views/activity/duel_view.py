@@ -8,6 +8,8 @@ from cogs.events.reward_helpers import (
 )
 
 from config.economy import (
+    DUEL_PAIR_REWARD_COOLDOWN_SECONDS,
+    DUEL_REWARD_DAILY_LIMIT,
     DUEL_WIN_REWARD,
 )
 
@@ -42,11 +44,28 @@ DUEL_STATUS_NAMES = {
 }
 
 
+DUEL_REWARD_STATUS_NAMES = {
+    "granted": "Награда начислена",
+    "already_granted": "Награда уже была начислена",
+    "too_short": "Без награды · дуэль слишком короткая",
+    "daily_limit": (
+        f"Без награды · лимит {DUEL_REWARD_DAILY_LIMIT} побед за 24 часа"
+    ),
+    "pair_cooldown": (
+        "Без награды · с этим соперником действует cooldown "
+        f"{DUEL_PAIR_REWARD_COOLDOWN_SECONDS // 3600} ч."
+    ),
+    "not_found": "Без награды · не удалось проверить дуэль",
+    "error": "Награда не выдалась · проверь логи бота",
+}
+
+
 def build_duel_embed(
     activity: Activity,
     challenger_id: int,
     opponent_id: int,
     result: DuelResult | None = None,
+    reward_status: str | None = None,
 ) -> discord.Embed:
     status = DUEL_STATUS_NAMES.get(
         activity.status,
@@ -101,8 +120,7 @@ def build_duel_embed(
             description = (
                 f"<@{challenger_id}> ⚔ "
                 f"<@{opponent_id}>\n\n"
-                f"Победитель: <@{result.winner_id}>\n"
-                f"Награда: {reward_text}."
+                f"Победитель: <@{result.winner_id}>"
             )
         else:
             description = (
@@ -146,6 +164,32 @@ def build_duel_embed(
         value=f"`{status}`",
         inline=True,
     )
+
+    if (
+        activity.status == "finished"
+        and result is not None
+        and result.status == "confirmed"
+    ):
+        if reward_status == "granted":
+            reward_value = (
+                f"{DUEL_REWARD_STATUS_NAMES['granted']}\n"
+                f"**{reward_text}**"
+            )
+        elif reward_status is not None:
+            reward_value = DUEL_REWARD_STATUS_NAMES.get(
+                reward_status,
+                "Без награды",
+            )
+        else:
+            reward_value = (
+                f"Награда победителю: **{reward_text}**"
+            )
+
+        embed.add_field(
+            name="REWARD",
+            value=reward_value,
+            inline=False,
+        )
 
     embed.set_footer(
         text=f"DUEL #{activity.activity_id}"
@@ -491,7 +535,7 @@ class DuelResultView(discord.ui.View):
                 self.activity_id
             )
 
-            reward_error = None
+            reward_status = None
 
             if result is not None:
                 try:
@@ -509,8 +553,16 @@ class DuelResultView(discord.ui.View):
                         results=reward_results,
                     )
 
+                    if any(
+                        reward.status == "granted"
+                        for reward in reward_results
+                    ):
+                        reward_status = "granted"
+                    elif reward_results:
+                        reward_status = reward_results[0].status
+
                 except Exception as error:
-                    reward_error = error
+                    reward_status = "error"
                     print(
                         f"[DUEL AUTO REWARD] {error}"
                     )
@@ -522,18 +574,10 @@ class DuelResultView(discord.ui.View):
                     challenger_id=self.challenger_id,
                     opponent_id=self.opponent_id,
                     result=result,
+                    reward_status=reward_status,
                 ),
                 view=None,
             )
-
-            if reward_error is not None:
-                await interaction.followup.send(
-                    (
-                        "Результат подтверждён, но автоматическая "
-                        "награда не выдалась. Проверь логи бота."
-                    ),
-                    ephemeral=True,
-                )
 
             self.stop()
 
