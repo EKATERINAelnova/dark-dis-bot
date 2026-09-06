@@ -93,9 +93,7 @@ async def get_close_settings(
             FROM close_settings
             WHERE activity_id = ?
             """,
-            (
-                activity_id,
-            ),
+            (activity_id,),
         )
 
         row = await cursor.fetchone()
@@ -125,130 +123,12 @@ async def get_close_settings(
     )
 
 
-async def set_close_captains(
-    activity_id: int,
-    captain_a_id: int,
-    captain_b_id: int,
-) -> str:
-    if captain_a_id == captain_b_id:
-        return "same_captain"
-
-    async with get_db() as db:
-        try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
-
-            cursor = await db.execute(
-                """
-                SELECT
-                    a.status,
-                    c.team_mode
-                FROM activities AS a
-                JOIN close_settings AS c
-                  ON c.activity_id = a.activity_id
-                WHERE a.activity_id = ?
-                  AND a.type = 'close'
-                """,
-                (
-                    activity_id,
-                ),
-            )
-
-            row = await cursor.fetchone()
-            await cursor.close()
-
-            if row is None:
-                await db.rollback()
-                return "not_found"
-
-            if str(row[0]) != "open":
-                await db.rollback()
-                return "closed"
-
-            if str(row[1]) != TEAM_MODE_CAPTAINS:
-                await db.rollback()
-                return "wrong_mode"
-
-            cursor = await db.execute(
-                """
-                SELECT user_id
-                FROM activity_participants
-                WHERE activity_id = ?
-                  AND user_id IN (?, ?)
-                """,
-                (
-                    activity_id,
-                    captain_a_id,
-                    captain_b_id,
-                ),
-            )
-
-            rows = await cursor.fetchall()
-            await cursor.close()
-
-            found = {
-                int(item[0])
-                for item in rows
-            }
-
-            if found != {
-                captain_a_id,
-                captain_b_id,
-            }:
-                await db.rollback()
-                return "not_participant"
-
-            await db.execute(
-                """
-                UPDATE close_settings
-                SET
-                    captain_a_id = ?,
-                    captain_b_id = ?,
-                    draft_turn = NULL
-                WHERE activity_id = ?
-                """,
-                (
-                    captain_a_id,
-                    captain_b_id,
-                    activity_id,
-                ),
-            )
-
-            await db.commit()
-            return "saved"
-
-        except Exception:
-            await db.rollback()
-            raise
-
-
-async def reset_close_roles(
-    activity_id: int,
-) -> None:
-    async with get_db() as db:
-        await db.execute(
-            """
-            UPDATE activity_participants
-            SET role = 'participant'
-            WHERE activity_id = ?
-            """,
-            (
-                activity_id,
-            ),
-        )
-
-        await db.commit()
-
-
 async def assign_random_teams(
     activity_id: int,
 ) -> str:
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             cursor = await db.execute(
                 """
@@ -257,9 +137,7 @@ async def assign_random_teams(
                 WHERE activity_id = ?
                 ORDER BY joined_at ASC
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             rows = await cursor.fetchall()
@@ -270,7 +148,7 @@ async def assign_random_teams(
                 for row in rows
             ]
 
-            if len(players) < 2:
+            if len(players) < 4:
                 await db.rollback()
                 return "not_enough"
 
@@ -278,9 +156,7 @@ async def assign_random_teams(
                 await db.rollback()
                 return "odd_count"
 
-            secrets.SystemRandom().shuffle(
-                players
-            )
+            secrets.SystemRandom().shuffle(players)
 
             half = len(players) // 2
             team_a = players[:half]
@@ -292,9 +168,7 @@ async def assign_random_teams(
                 SET role = 'participant'
                 WHERE activity_id = ?
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             await db.executemany(
@@ -305,10 +179,7 @@ async def assign_random_teams(
                   AND user_id = ?
                 """,
                 [
-                    (
-                        activity_id,
-                        user_id,
-                    )
+                    (activity_id, user_id)
                     for user_id in team_a
                 ],
             )
@@ -321,10 +192,7 @@ async def assign_random_teams(
                   AND user_id = ?
                 """,
                 [
-                    (
-                        activity_id,
-                        user_id,
-                    )
+                    (activity_id, user_id)
                     for user_id in team_b
                 ],
             )
@@ -332,12 +200,13 @@ async def assign_random_teams(
             await db.execute(
                 """
                 UPDATE close_settings
-                SET draft_turn = 'done'
+                SET
+                    captain_a_id = NULL,
+                    captain_b_id = NULL,
+                    draft_turn = 'done'
                 WHERE activity_id = ?
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             await db.commit()
@@ -353,40 +222,26 @@ async def prepare_captain_draft(
 ) -> str:
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             cursor = await db.execute(
                 """
-                SELECT
-                    captain_a_id,
-                    captain_b_id
+                SELECT team_mode
                 FROM close_settings
                 WHERE activity_id = ?
-                  AND team_mode = 'captains'
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
-            row = await cursor.fetchone()
+            settings_row = await cursor.fetchone()
             await cursor.close()
 
-            if row is None:
-                await db.rollback()
-                return "wrong_mode"
-
             if (
-                row[0] is None
-                or row[1] is None
+                settings_row is None
+                or str(settings_row[0]) != TEAM_MODE_CAPTAINS
             ):
                 await db.rollback()
-                return "captains_missing"
-
-            captain_a_id = int(row[0])
-            captain_b_id = int(row[1])
+                return "wrong_mode"
 
             cursor = await db.execute(
                 """
@@ -395,20 +250,18 @@ async def prepare_captain_draft(
                 WHERE activity_id = ?
                 ORDER BY joined_at ASC
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             rows = await cursor.fetchall()
             await cursor.close()
 
-            players = {
-                int(item[0])
-                for item in rows
-            }
+            players = [
+                int(row[0])
+                for row in rows
+            ]
 
-            if len(players) < 2:
+            if len(players) < 4:
                 await db.rollback()
                 return "not_enough"
 
@@ -416,12 +269,16 @@ async def prepare_captain_draft(
                 await db.rollback()
                 return "odd_count"
 
-            if (
-                captain_a_id not in players
-                or captain_b_id not in players
-            ):
-                await db.rollback()
-                return "captains_missing"
+            captain_a_id, captain_b_id = (
+                secrets.SystemRandom().sample(
+                    players,
+                    2,
+                )
+            )
+
+            first_turn = secrets.choice(
+                ("a", "b")
+            )
 
             await db.execute(
                 """
@@ -429,9 +286,7 @@ async def prepare_captain_draft(
                 SET role = 'participant'
                 WHERE activity_id = ?
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             await db.execute(
@@ -460,22 +315,19 @@ async def prepare_captain_draft(
                 ),
             )
 
-            turn = (
-                "done"
-                if len(players) == 2
-                else secrets.choice(
-                    ("a", "b")
-                )
-            )
-
             await db.execute(
                 """
                 UPDATE close_settings
-                SET draft_turn = ?
+                SET
+                    captain_a_id = ?,
+                    captain_b_id = ?,
+                    draft_turn = ?
                 WHERE activity_id = ?
                 """,
                 (
-                    turn,
+                    captain_a_id,
+                    captain_b_id,
+                    first_turn,
                     activity_id,
                 ),
             )
@@ -495,9 +347,7 @@ async def pick_close_player(
 ) -> str:
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             cursor = await db.execute(
                 """
@@ -513,9 +363,7 @@ async def pick_close_player(
                   AND a.type = 'close'
                   AND c.team_mode = 'captains'
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             row = await cursor.fetchone()
@@ -528,6 +376,14 @@ async def pick_close_player(
             if str(row[0]) != "running":
                 await db.rollback()
                 return "not_running"
+
+            if (
+                row[1] is None
+                or row[2] is None
+                or row[3] is None
+            ):
+                await db.rollback()
+                return "not_ready"
 
             captain_a_id = int(row[1])
             captain_b_id = int(row[2])
@@ -599,9 +455,7 @@ async def pick_close_player(
                 WHERE activity_id = ?
                   AND role = 'participant'
                 """,
-                (
-                    activity_id,
-                ),
+                (activity_id,),
             )
 
             count_row = await cursor.fetchone()
@@ -632,6 +486,7 @@ async def pick_close_player(
             )
 
             await db.commit()
+
             return (
                 "finished"
                 if next_turn == "done"
@@ -656,9 +511,7 @@ async def get_close_teams(
             WHERE activity_id = ?
             ORDER BY joined_at ASC
             """,
-            (
-                activity_id,
-            ),
+            (activity_id,),
         )
 
         rows = await cursor.fetchall()
@@ -677,13 +530,11 @@ async def get_close_teams(
             "team_a",
         }:
             team_a.append(user_id)
-
         elif role in {
             "captain_b",
             "team_b",
         }:
             team_b.append(user_id)
-
         else:
             waiting.append(user_id)
 
