@@ -25,7 +25,7 @@ class Achievements(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="achievements",
+        name="достижения",
         description="Посмотреть достижения участника сада",
     )
     @app_commands.guild_only()
