@@ -12,6 +12,7 @@ from services.achievements import (
     ACHIEVEMENTS,
     check_achievements,
     get_achievement_value,
+    get_metric_participations,
     get_unlocked_achievement_keys,
 )
 from utils.embeds import eden_embed
@@ -63,10 +64,7 @@ class Achievements(commands.Cog):
         lines = []
 
         for achievement in ACHIEVEMENTS:
-            unlocked = (
-                achievement.key
-                in unlocked_keys
-            )
+            unlocked = achievement.key in unlocked_keys
 
             value = get_achievement_value(
                 achievement,
@@ -86,8 +84,11 @@ class Achievements(commands.Cog):
                         f"{achievement.target // 60} мин."
                     )
 
-                elif achievement.metric == "close_winrate":
-                    played = activity_progress.closes.participations
+                elif achievement.minimum_participations > 0:
+                    played = get_metric_participations(
+                        achievement,
+                        activity_progress,
+                    )
 
                     if played < achievement.minimum_participations:
                         progress = (
@@ -127,9 +128,7 @@ class Achievements(commands.Cog):
 
         embed = eden_embed(
             title="✦ ACHIEVEMENTS",
-            description="\n\n".join(
-                lines
-            ),
+            description="\n\n".join(lines),
         )
 
         embed.set_footer(
