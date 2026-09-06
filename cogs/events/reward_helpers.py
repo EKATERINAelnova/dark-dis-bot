@@ -20,9 +20,7 @@ def format_reward(
     amount: int,
 ) -> str:
     if kind == "currency":
-        return (
-            f"{amount} {CURRENCY_SYMBOL}"
-        )
+        return f"{amount} {CURRENCY_SYMBOL}"
 
     if kind == "xp":
         return f"{amount} XP"
@@ -42,19 +40,58 @@ def format_reward_bundle(
     return " · ".join(parts) or "Без награды"
 
 
+def encode_custom_event_reward(
+    currency: int,
+    xp: int,
+    cases: int,
+) -> str:
+    return f"custom:{currency}:{xp}:{cases}"
+
+
+def get_event_rewards(
+    reward_preset: str | None,
+) -> dict[str, int]:
+    key = reward_preset or "standard"
+
+    if key.startswith("custom:"):
+        try:
+            _, currency, xp, cases = key.split(":")
+
+            return {
+                "currency": int(currency),
+                "xp": int(xp),
+                "case": int(cases),
+            }
+        except (ValueError, TypeError):
+            return {
+                "currency": 0,
+                "xp": 0,
+                "case": 0,
+            }
+
+    return EVENT_REWARD_PRESETS.get(
+        key,
+        {
+            "currency": 0,
+            "xp": 0,
+            "case": 0,
+        },
+    )
+
+
 def format_event_reward_preset(
     preset_key: str | None,
 ) -> str:
     key = preset_key or "standard"
-    rewards = EVENT_REWARD_PRESETS.get(key)
+    rewards = get_event_rewards(key)
 
-    if rewards is None:
-        return "Неизвестная награда"
-
-    name = EVENT_REWARD_PRESET_NAMES.get(
-        key,
-        key.upper(),
-    )
+    if key.startswith("custom:"):
+        name = "CUSTOM EVENT"
+    else:
+        name = EVENT_REWARD_PRESET_NAMES.get(
+            key,
+            key.upper(),
+        )
 
     return (
         f"{name}\n"
