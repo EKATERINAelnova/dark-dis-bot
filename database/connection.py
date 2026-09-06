@@ -27,9 +27,6 @@ DB_PATH = DB_DIR / "eden.db"
 async def get_db():
     """
     Создаёт настроенное подключение к SQLite.
-
-    Все модули проекта постепенно
-    переведём на использование этой функции.
     """
 
     DB_DIR.mkdir(
@@ -43,15 +40,10 @@ async def get_db():
     )
 
     try:
-        # SQLite будет ждать освобождения БД,
-        # вместо мгновенного "database is locked".
         await db.execute(
             "PRAGMA busy_timeout = 5000"
         )
 
-        # Включаем поддержку foreign keys.
-        # Пока они почти не используются,
-        # но база готова к ним заранее.
         await db.execute(
             "PRAGMA foreign_keys = ON"
         )
@@ -77,26 +69,13 @@ async def init_db() -> None:
     )
 
     async with get_db() as db:
-
-        # =====================================================
-        # SQLITE SETTINGS
-        # =====================================================
-
-        # WAL позволяет чтению и записи
-        # меньше мешать друг другу.
         await db.execute(
             "PRAGMA journal_mode = WAL"
         )
 
-        # Хороший баланс между
-        # надёжностью и производительностью.
         await db.execute(
             "PRAGMA synchronous = NORMAL"
         )
-
-        # =====================================================
-        # MEMBER STATS
-        # =====================================================
 
         await db.execute(
             """
@@ -131,6 +110,7 @@ async def init_db() -> None:
             )
             """
         )
+
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS daily_rituals (
@@ -166,6 +146,7 @@ async def init_db() -> None:
                 channel_id INTEGER,
                 message_id INTEGER,
 
+                reward_preset TEXT,
                 created_at INTEGER NOT NULL
             )
             """
@@ -238,9 +219,38 @@ async def init_db() -> None:
             )
             """
         )
-        # =====================================================
-        # MIGRATION: XP
-        # =====================================================
+
+        cursor = await db.execute(
+            "PRAGMA table_info(activities)"
+        )
+
+        activity_columns = {
+            row[1]
+            for row in await cursor.fetchall()
+        }
+
+        await cursor.close()
+
+        if "reward_preset" not in activity_columns:
+            await db.execute(
+                """
+                ALTER TABLE activities
+                ADD COLUMN reward_preset TEXT
+                """
+            )
+
+            await db.execute(
+                """
+                UPDATE activities
+                SET reward_preset = 'standard'
+                WHERE type = 'event'
+                  AND status IN ('open', 'running')
+                """
+            )
+
+            print(
+                "[DB] Добавлена колонка reward_preset"
+            )
 
         cursor = await db.execute(
             "PRAGMA table_info(member_stats)"
@@ -261,10 +271,10 @@ async def init_db() -> None:
                 """
             )
 
-            print("[DB] Добавлена колонка eden_cases")
+            print(
+                "[DB] Добавлена колонка eden_cases"
+            )
 
-        # Поддержка старой базы,
-        # созданной до появления XP.
         if "xp" not in columns:
             await db.execute(
                 """
@@ -293,10 +303,6 @@ async def init_db() -> None:
                 "[DB] Добавлена колонка xp"
             )
 
-        # =====================================================
-        # CURRENCY TRANSACTIONS
-        # =====================================================
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS currency_transactions (
@@ -315,10 +321,6 @@ async def init_db() -> None:
             )
             """
         )
-
-        # =====================================================
-        # INDEXES
-        # =====================================================
 
         await db.execute(
             """
