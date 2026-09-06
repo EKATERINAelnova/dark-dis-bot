@@ -39,10 +39,6 @@ class Duels(commands.Cog):
     ):
         self.bot = bot
 
-    # =========================================================
-    # RESTORE VIEWS
-    # =========================================================
-
     async def cog_load(
         self,
     ) -> None:
@@ -115,10 +111,6 @@ class Duels(commands.Cog):
                 message_id=activity.message_id,
             )
 
-    # =========================================================
-    # MESSAGE
-    # =========================================================
-
     async def refresh_duel_message(
         self,
         activity: Activity,
@@ -177,12 +169,8 @@ class Duels(commands.Cog):
             view=view,
         )
 
-    # =========================================================
-    # CREATE DUEL
-    # =========================================================
-
     @app_commands.command(
-        name="duel",
+        name="дуэль",
         description="Бросить вызов участнику сада",
     )
     @app_commands.guild_only()
@@ -218,10 +206,7 @@ class Duels(commands.Cog):
             )
         ):
             await interaction.response.send_message(
-                (
-                    "В этом канале нельзя "
-                    "создать DUEL."
-                ),
+                "В этом канале нельзя создать DUEL.",
                 ephemeral=True,
             )
             return
@@ -237,9 +222,7 @@ class Duels(commands.Cog):
         )
 
         title = (
-            f"{challenger_name} "
-            f"VS "
-            f"{opponent.display_name}"
+            f"{challenger_name} VS {opponent.display_name}"
         )
 
         result = await create_duel(
@@ -251,20 +234,14 @@ class Duels(commands.Cog):
 
         if result.status == "challenger_busy":
             await interaction.followup.send(
-                (
-                    "У тебя уже есть "
-                    "незавершённая дуэль."
-                ),
+                "У тебя уже есть незавершённая дуэль.",
                 ephemeral=True,
             )
             return
 
         if result.status == "opponent_busy":
             await interaction.followup.send(
-                (
-                    f"{opponent.mention} уже "
-                    f"участвует в другой дуэли."
-                ),
+                f"{opponent.mention} уже участвует в другой дуэли.",
                 ephemeral=True,
             )
             return
@@ -302,9 +279,7 @@ class Duels(commands.Cog):
                 view=view,
                 allowed_mentions=(
                     discord.AllowedMentions(
-                        users=[
-                            opponent
-                        ]
+                        users=[opponent]
                     )
                 ),
             )
@@ -328,7 +303,6 @@ class Duels(commands.Cog):
                     await message.edit(
                         view=None
                     )
-
                 except discord.HTTPException:
                     pass
 
@@ -337,28 +311,18 @@ class Duels(commands.Cog):
             )
 
             await interaction.followup.send(
-                (
-                    "Не удалось опубликовать "
-                    "DUEL. Вызов отменён."
-                ),
+                "Не удалось опубликовать DUEL. Вызов отменён.",
                 ephemeral=True,
             )
             return
 
         await interaction.followup.send(
-            (
-                f"DUEL **#{activity.activity_id}** "
-                f"создан."
-            ),
+            f"DUEL **#{activity.activity_id}** создан.",
             ephemeral=True,
         )
 
-    # =========================================================
-    # RESULT
-    # =========================================================
-
     @app_commands.command(
-        name="duel-result",
+        name="результат-дуэли",
         description="Предложить результат дуэли",
     )
     @app_commands.guild_only()
@@ -386,10 +350,7 @@ class Duels(commands.Cog):
 
         if activity.status != "running":
             await interaction.followup.send(
-                (
-                    "Результат можно указать "
-                    "только для активной дуэли."
-                ),
+                "Результат можно указать только для активной дуэли.",
                 ephemeral=True,
             )
             return
@@ -400,59 +361,42 @@ class Duels(commands.Cog):
 
         if players is None:
             await interaction.followup.send(
-                (
-                    "Не удалось получить "
-                    "участников DUEL."
-                ),
+                "Не удалось получить участников DUEL.",
                 ephemeral=True,
             )
             return
 
         if interaction.user.id not in players:
             await interaction.followup.send(
-                (
-                    "Указать результат может "
-                    "только участник дуэли."
-                ),
+                "Указать результат может только участник дуэли.",
                 ephemeral=True,
             )
             return
 
         if winner.id not in players:
             await interaction.followup.send(
-                (
-                    "Победителем должен быть "
-                    "один из участников."
-                ),
+                "Победителем должен быть один из участников.",
                 ephemeral=True,
             )
             return
 
-        status, result = (
-            await propose_duel_result(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                winner_id=winner.id,
-                submitted_by=interaction.user.id,
-            )
+        status, result = await propose_duel_result(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            winner_id=winner.id,
+            submitted_by=interaction.user.id,
         )
 
         if status == "already_pending":
             await interaction.followup.send(
-                (
-                    "Результат этой дуэли уже "
-                    "ожидает подтверждения."
-                ),
+                "Результат этой дуэли уже ожидает подтверждения.",
                 ephemeral=True,
             )
             return
 
         if status == "not_running":
             await interaction.followup.send(
-                (
-                    "Эта дуэль уже "
-                    "не находится в процессе."
-                ),
+                "Эта дуэль уже не находится в процессе.",
                 ephemeral=True,
             )
             return
@@ -473,20 +417,14 @@ class Duels(commands.Cog):
 
         await interaction.followup.send(
             (
-                f"Победителем указан "
-                f"{winner.mention}.\n"
-                f"Второй участник должен "
-                f"подтвердить результат."
+                f"Победителем указан {winner.mention}.\n"
+                f"Второй участник должен подтвердить результат."
             ),
             ephemeral=True,
         )
 
-    # =========================================================
-    # CANCEL
-    # =========================================================
-
     @app_commands.command(
-        name="duel-cancel",
+        name="отменить-дуэль",
         description="Принудительно закрыть дуэль",
     )
     @app_commands.guild_only()
@@ -524,12 +462,10 @@ class Duels(commands.Cog):
             )
             return
 
-        status, activity = (
-            await change_activity_status(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                new_status="cancelled",
-            )
+        status, activity = await change_activity_status(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            new_status="cancelled",
         )
 
         if (
@@ -552,10 +488,7 @@ class Duels(commands.Cog):
         )
 
         await interaction.followup.send(
-            (
-                f"DUEL **#{activity_id}** "
-                f"закрыт."
-            ),
+            f"DUEL **#{activity_id}** закрыт.",
             ephemeral=True,
         )
 
