@@ -6,6 +6,7 @@ CURRENCY_SYMBOL = "🍎"
 # ACTIVITY REWARDS
 # =========================================================
 
+# Старые пресеты оставлены для уже созданных EVENT.
 EVENT_REWARD_PRESETS = {
     "small": {
         "currency": 20,
@@ -30,11 +31,20 @@ EVENT_REWARD_PRESET_NAMES = {
     "major": "MAJOR EVENT",
 }
 
+EVENT_MAX_CURRENCY_REWARD = 500
+EVENT_MAX_XP_REWARD = 500
+EVENT_MAX_CASE_REWARD = 5
+
 DUEL_WIN_REWARD = {
-    "currency": 25,
-    "xp": 20,
+    "currency": 8,
+    "xp": 5,
     "case": 0,
 }
+
+DUEL_REWARD_DAILY_LIMIT = 3
+DUEL_REWARD_WINDOW_SECONDS = 24 * 60 * 60
+DUEL_PAIR_REWARD_COOLDOWN_SECONDS = 6 * 60 * 60
+DUEL_MIN_DURATION_SECONDS = 2 * 60
 
 MESSAGE_FUNDS = 1
 MESSAGE_FUNDS_COOLDOWN = 180
