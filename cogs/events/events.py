@@ -26,6 +26,10 @@ from services.activity_rewards import (
     reward_activity_participants,
 )
 
+from services.automatic_activity_rewards import (
+    reward_event_automatically,
+)
+
 from views.activity.activity_view import (
     ActivityView,
     build_activity_embed,
@@ -38,10 +42,6 @@ class Events(commands.Cog):
         bot: commands.Bot,
     ):
         self.bot = bot
-
-    # =========================================================
-    # RESTORE
-    # =========================================================
 
     async def cog_load(
         self,
@@ -65,10 +65,6 @@ class Events(commands.Cog):
                 ),
                 message_id=activity.message_id,
             )
-
-    # =========================================================
-    # MESSAGE
-    # =========================================================
 
     async def refresh_activity_message(
         self,
@@ -103,10 +99,6 @@ class Events(commands.Cog):
             view=view,
         )
 
-    # =========================================================
-    # CREATE
-    # =========================================================
-
     @app_commands.command(
         name="event-create",
         description="Создать серверный ивент",
@@ -115,11 +107,28 @@ class Events(commands.Cog):
     @app_commands.checks.has_permissions(
         manage_guild=True
     )
+    @app_commands.choices(
+        reward=[
+            app_commands.Choice(
+                name="SMALL · 20 🍎 + 15 XP",
+                value="small",
+            ),
+            app_commands.Choice(
+                name="EVENT · 40 🍎 + 30 XP",
+                value="standard",
+            ),
+            app_commands.Choice(
+                name="MAJOR · 75 🍎 + 50 XP + 1 CASE",
+                value="major",
+            ),
+        ]
+    )
     async def create_event(
         self,
         interaction: discord.Interaction,
         title: str,
         description: str,
+        reward: app_commands.Choice[str],
         max_participants: app_commands.Range[
             int,
             1,
@@ -139,6 +148,7 @@ class Events(commands.Cog):
                 description=description,
                 host_id=interaction.user.id,
                 max_participants=max_participants,
+                reward_preset=reward.value,
             )
 
         except ValueError as error:
@@ -190,10 +200,6 @@ class Events(commands.Cog):
                 ephemeral=True,
             )
 
-    # =========================================================
-    # START
-    # =========================================================
-
     @app_commands.command(
         name="event-start",
         description="Запустить серверный ивент",
@@ -236,10 +242,7 @@ class Events(commands.Cog):
             or activity is None
         ):
             await interaction.followup.send(
-                (
-                    "Этот EVENT уже нельзя "
-                    "запустить."
-                ),
+                "Этот EVENT уже нельзя запустить.",
                 ephemeral=True,
             )
             return
@@ -249,16 +252,9 @@ class Events(commands.Cog):
         )
 
         await interaction.followup.send(
-            (
-                f"EVENT **#{activity_id}** "
-                f"запущен."
-            ),
+            f"EVENT **#{activity_id}** запущен.",
             ephemeral=True,
         )
-
-    # =========================================================
-    # FINISH
-    # =========================================================
 
     @app_commands.command(
         name="event-finish",
@@ -302,29 +298,63 @@ class Events(commands.Cog):
             or activity is None
         ):
             await interaction.followup.send(
-                (
-                    "Сначала EVENT должен "
-                    "быть запущен."
-                ),
+                "Сначала EVENT должен быть запущен.",
                 ephemeral=True,
             )
             return
+
+        reward_results = []
+
+        try:
+            reward_results = (
+                await reward_event_automatically(
+                    activity=activity,
+                    actor_id=interaction.user.id,
+                )
+            )
+
+            await process_xp_rewards(
+                guild=interaction.guild,
+                results=reward_results,
+            )
+
+        except Exception as error:
+            print(
+                f"[EVENT AUTO REWARD] {error}"
+            )
 
         await self.refresh_activity_message(
             activity
         )
 
-        await interaction.followup.send(
-            (
-                f"EVENT **#{activity_id}** "
-                f"завершён."
-            ),
-            ephemeral=True,
+        granted_users = {
+            result.user_id
+            for result in reward_results
+            if result.status == "granted"
+        }
+
+        text = (
+            f"EVENT **#{activity_id}** завершён."
         )
 
-    # =========================================================
-    # CANCEL
-    # =========================================================
+        if granted_users:
+            text += (
+                f"\nНаграды автоматически получили: "
+                f"**{len(granted_users)}**."
+            )
+        elif reward_results:
+            text += (
+                "\nАвтоматические награды уже были выданы."
+            )
+        else:
+            text += (
+                "\nУчастников для награждения нет."
+            )
+
+        await interaction.followup.send(
+            text,
+            ephemeral=True,
+        )
 
     @app_commands.command(
         name="event-cancel",
@@ -368,10 +398,7 @@ class Events(commands.Cog):
             or activity is None
         ):
             await interaction.followup.send(
-                (
-                    "Этот EVENT уже завершён "
-                    "или отменён."
-                ),
+                "Этот EVENT уже завершён или отменён.",
                 ephemeral=True,
             )
             return
@@ -381,20 +408,13 @@ class Events(commands.Cog):
         )
 
         await interaction.followup.send(
-            (
-                f"EVENT **#{activity_id}** "
-                f"отменён."
-            ),
+            f"EVENT **#{activity_id}** отменён.",
             ephemeral=True,
         )
 
-    # =========================================================
-    # REWARD
-    # =========================================================
-
     @app_commands.command(
         name="event-reward",
-        description="Выдать награду участникам ивента",
+        description="Дополнительно наградить участников ивента",
     )
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(
@@ -446,7 +466,7 @@ class Events(commands.Cog):
         if activity.status != "finished":
             await interaction.followup.send(
                 (
-                    "Награду можно выдавать "
+                    "Дополнительную награду можно выдать "
                     "только после завершения EVENT."
                 ),
                 ephemeral=True,
@@ -455,27 +475,20 @@ class Events(commands.Cog):
 
         kind = reward_kind.value
 
-        if (
-            kind == "case"
-            and amount > 10
-        ):
+        if kind == "case" and amount > 10:
             await interaction.followup.send(
-                (
-                    "За один EVENT нельзя выдать "
-                    "больше 10 EDEN CASE."
-                ),
+                "Нельзя выдать больше 10 EDEN CASE.",
                 ephemeral=True,
             )
             return
 
-        results = (
-            await reward_activity_participants(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                reward_kind=kind,
-                amount=amount,
-                actor_id=interaction.user.id,
-            )
+        results = await reward_activity_participants(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            reward_kind=kind,
+            amount=amount,
+            actor_id=interaction.user.id,
+            reward_prefix="manual",
         )
 
         if not results:
@@ -489,12 +502,6 @@ class Events(commands.Cog):
             result
             for result in results
             if result.status == "granted"
-        ]
-
-        already_granted = [
-            result
-            for result in results
-            if result.status == "already_granted"
         ]
 
         if kind == "xp":
@@ -511,31 +518,18 @@ class Events(commands.Cog):
         if not granted:
             await interaction.followup.send(
                 (
-                    f"Награда **{reward_text}** "
-                    f"уже была выдана всем "
-                    f"участникам EVENT "
-                    f"#{activity_id}."
+                    f"Дополнительная награда "
+                    f"**{reward_text}** уже выдавалась."
                 ),
                 ephemeral=True,
             )
             return
 
-        text = (
-            f"Участникам EVENT "
-            f"**#{activity_id}** выдано "
-            f"**{reward_text}**.\n\n"
-            f"Получили сейчас: "
-            f"**{len(granted)}**"
-        )
-
-        if already_granted:
-            text += (
-                f"\nУже получали раньше: "
-                f"**{len(already_granted)}**"
-            )
-
         await interaction.followup.send(
-            text,
+            (
+                f"Дополнительно выдано **{reward_text}**.\n"
+                f"Получили: **{len(granted)}**."
+            ),
             ephemeral=True,
         )
 
