@@ -41,12 +41,8 @@ class General(commands.Cog):
     ):
         self.bot = bot
 
-    # =========================================================
-    # TEST BANNER
-    # =========================================================
-
     @app_commands.command(
-        name="testbanner",
+        name="тест-баннера",
         description="Тест обновления баннера",
     )
     @app_commands.guild_only()
@@ -57,20 +53,11 @@ class General(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        """
-        Ручное тестовое обновление баннера.
-
-        Доступно только администраторам.
-        """
-
         guild = interaction.guild
 
         if guild is None:
             return
 
-        # Сразу подтверждаем interaction,
-        # потому что генерация изображения
-        # и guild.edit могут занять время.
         await interaction.response.defer(
             ephemeral=True
         )
@@ -98,18 +85,14 @@ class General(commands.Cog):
 
         await guild.edit(
             banner=banner,
-            reason=(
-                "Тест динамического баннера"
-            ),
+            reason="Тест динамического баннера",
         )
 
         embed = eden_embed(
             title="🌿 Баннер обновлён",
             description=(
-                f"В саду: "
-                f"**{online_count}**\n"
-                f"Всего душ: "
-                f"**{member_count}**"
+                f"В саду: **{online_count}**\n"
+                f"Всего душ: **{member_count}**"
             ),
         )
 
@@ -118,12 +101,8 @@ class General(commands.Cog):
             ephemeral=True,
         )
 
-    # =========================================================
-    # PING
-    # =========================================================
-
     @app_commands.command(
-        name="ping",
+        name="пинг",
         description="Проверить работу бота",
     )
     async def ping(
@@ -134,8 +113,7 @@ class General(commands.Cog):
             title="🌿 Связь с садом",
             description=(
                 "Сад отвечает.\n"
-                f"Задержка: "
-                f"`{round(self.bot.latency * 1000)} ms`"
+                f"Задержка: `{round(self.bot.latency * 1000)} ms`"
             ),
         )
 
@@ -143,15 +121,9 @@ class General(commands.Cog):
             embed=embed
         )
 
-    # =========================================================
-    # PROFILE
-    # =========================================================
-
     @app_commands.command(
-        name="profile",
-        description=(
-            "Открыть профиль участника сада"
-        ),
+        name="профиль",
+        description="Открыть профиль участника сада",
     )
     async def profile(
         self,
@@ -171,7 +143,6 @@ class General(commands.Cog):
                 embed=embed,
                 ephemeral=True,
             )
-
             return
 
         if user is None:
@@ -221,17 +192,9 @@ class General(commands.Cog):
             file=file
         )
 
-    
-
-    # =========================================================
-    # USER INFO
-    # =========================================================
-
     @app_commands.command(
-        name="userinfo",
-        description=(
-            "Информация об участнике сада"
-        ),
+        name="участник",
+        description="Информация об участнике сада",
     )
     async def userinfo(
         self,
@@ -241,16 +204,12 @@ class General(commands.Cog):
         if user.joined_at is None:
             joined_text = "Неизвестно"
         else:
-            joined_text = (
-                user.joined_at.strftime(
-                    "%d.%m.%Y"
-                )
-            )
-
-        created_text = (
-            user.created_at.strftime(
+            joined_text = user.joined_at.strftime(
                 "%d.%m.%Y"
             )
+
+        created_text = user.created_at.strftime(
+            "%d.%m.%Y"
         )
 
         roles_text = ", ".join(
@@ -260,16 +219,13 @@ class General(commands.Cog):
         )
 
         if not roles_text:
-            roles_text = (
-                "Пока без выбранных ролей"
-            )
+            roles_text = "Пока без выбранных ролей"
 
         embed = discord.Embed(
             title="🌿 Путник сада",
             description=(
                 f"{user.mention}\n"
-                "*Каждый приходит сюда "
-                "со своей дорогой за спиной.*"
+                "*Каждый приходит сюда со своей дорогой за спиной.*"
             ),
             colour=EDEN_GOLD,
         )
@@ -304,8 +260,7 @@ class General(commands.Cog):
 
         embed.set_footer(
             text=(
-                f"LOST EDEN · RIMAY  •  "
-                f"ID {user.id}"
+                f"LOST EDEN · RIMAY  •  ID {user.id}"
             )
         )
 
@@ -313,12 +268,8 @@ class General(commands.Cog):
             embed=embed
         )
 
-    # =========================================================
-    # SERVER INFO
-    # =========================================================
-
     @app_commands.command(
-        name="serverinfo",
+        name="сервер",
         description="Открыть карту LOST EDEN",
     )
     async def serverinfo(
@@ -340,7 +291,6 @@ class General(commands.Cog):
                 embed=embed,
                 ephemeral=True,
             )
-
             return
 
         view = ServerInfoView(
@@ -353,17 +303,10 @@ class General(commands.Cog):
             view=view,
         )
 
-        view.message = (
-            await interaction.original_response()
-        )
-
-
-    # =========================================================
-    # EDEN CASES
-    # =========================================================
+        view.message = await interaction.original_response()
 
     @app_commands.command(
-        name="cases",
+        name="кейсы",
         description="Открыть хранилище EDEN CASES",
     )
     @app_commands.guild_only()
@@ -394,19 +337,13 @@ class General(commands.Cog):
 
         if stats.eden_cases <= 0:
             view.open_button.disabled = True
-
             cases_text = (
                 "В хранилище пока тихо.\n"
                 "Следующий EDEN CASE появится "
                 "на новом уровне."
             )
-
         elif stats.eden_cases == 1:
-            cases_text = (
-                "В хранилище ждёт "
-                "**1 EDEN CASE**."
-            )
-
+            cases_text = "В хранилище ждёт **1 EDEN CASE**."
         else:
             cases_text = (
                 f"В хранилище ждут "
@@ -417,8 +354,7 @@ class General(commands.Cog):
             title="✦ EDEN CASES",
             description=(
                 f"{cases_text}\n\n"
-                "*То, что сад сохранил "
-                "для твоего пути.*"
+                "*То, что сад сохранил для твоего пути.*"
             ),
         )
 
@@ -445,16 +381,10 @@ class General(commands.Cog):
             view=view,
             ephemeral=True,
         )
-    
-    # =========================================================
-    # LEADERBOARD
-    # =========================================================
 
     @app_commands.command(
-        name="leaderboard",
-        description=(
-            "Посмотреть рейтинг участников сада"
-        ),
+        name="рейтинг",
+        description="Посмотреть рейтинг участников сада",
     )
     async def leaderboard(
         self,
@@ -473,7 +403,6 @@ class General(commands.Cog):
                 embed=embed,
                 ephemeral=True,
             )
-
             return
 
         await interaction.response.defer()
@@ -485,10 +414,6 @@ class General(commands.Cog):
 
         embed = await view.build_embed()
 
-        # ВАЖНО:
-        # сохраняем отправленное сообщение,
-        # чтобы LeaderboardView.on_timeout()
-        # смог отключить кнопки.
         message = await interaction.followup.send(
             embed=embed,
             view=view,
