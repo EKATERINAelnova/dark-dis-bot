@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs.events.list_helpers import (
+    build_close_list_embed,
     build_duel_list_embed,
     build_event_list_embed,
 )
@@ -72,6 +73,36 @@ class ActivityLists(commands.Cog):
         )
 
         embed = await build_duel_list_embed(
+            activities
+        )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="клозы",
+        description="Показать активные CLOSE",
+    )
+    @app_commands.guild_only()
+    async def close_list(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        activities = await get_active_activities(
+            guild_id=interaction.guild.id,
+            activity_type="close",
+        )
+
+        embed = await build_close_list_embed(
             activities
         )
 
