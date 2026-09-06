@@ -116,6 +116,7 @@ GUILD_ID = require_int_env(
 
 EXTENSIONS = [
     "cogs.general.general",
+    "cogs.general.progress",
     "cogs.fun.fun",
     "cogs.activity",
     "cogs.welcome.banner",
@@ -165,10 +166,6 @@ class BotClient(
 
         await init_db()
 
-        # =============================================
-        # COGS
-        # =============================================
-
         for extension in EXTENSIONS:
             try:
                 await self.load_extension(
@@ -187,13 +184,7 @@ class BotClient(
                     extension,
                 )
 
-                # Не запускаем частично
-                # работающего бота.
                 raise
-
-        # =============================================
-        # COMMAND SYNC
-        # =============================================
 
         guild = discord.Object(
             id=GUILD_ID
@@ -266,13 +257,6 @@ async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError,
 ) -> None:
-    """
-    Общий обработчик ошибок slash-команд.
-
-    Пользователь получает понятное сообщение,
-    а полная техническая ошибка остаётся в логах.
-    """
-
     if isinstance(
         error,
         app_commands.MissingPermissions,
