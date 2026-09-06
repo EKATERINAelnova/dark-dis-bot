@@ -2,6 +2,8 @@ import discord
 
 from config.economy import (
     CURRENCY_SYMBOL,
+    EVENT_REWARD_PRESET_NAMES,
+    EVENT_REWARD_PRESETS,
 )
 
 from services.achievements import (
@@ -19,8 +21,7 @@ def format_reward(
 ) -> str:
     if kind == "currency":
         return (
-            f"{amount} "
-            f"{CURRENCY_SYMBOL}"
+            f"{amount} {CURRENCY_SYMBOL}"
         )
 
     if kind == "xp":
@@ -29,11 +30,52 @@ def format_reward(
     return f"{amount} EDEN CASE"
 
 
+def format_reward_bundle(
+    rewards: dict[str, int],
+) -> str:
+    parts = [
+        format_reward(kind, amount)
+        for kind, amount in rewards.items()
+        if amount > 0
+    ]
+
+    return " · ".join(parts) or "Без награды"
+
+
+def format_event_reward_preset(
+    preset_key: str | None,
+) -> str:
+    key = preset_key or "standard"
+    rewards = EVENT_REWARD_PRESETS.get(key)
+
+    if rewards is None:
+        return "Неизвестная награда"
+
+    name = EVENT_REWARD_PRESET_NAMES.get(
+        key,
+        key.upper(),
+    )
+
+    return (
+        f"{name}\n"
+        f"{format_reward_bundle(rewards)}"
+    )
+
+
 async def process_xp_rewards(
     guild: discord.Guild,
     results,
 ) -> None:
-    for result in results:
+    xp_results = [
+        result
+        for result in results
+        if (
+            result.status == "granted"
+            and result.reward_kind == "xp"
+        )
+    ]
+
+    for result in xp_results:
         await check_achievements(
             guild_id=guild.id,
             user_id=result.user_id,
