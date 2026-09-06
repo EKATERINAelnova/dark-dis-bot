@@ -37,6 +37,18 @@ STATUS_NAMES = {
 }
 
 
+def mention_list(
+    user_ids: list[int],
+) -> str:
+    if not user_ids:
+        return "Пока пусто."
+
+    return "\n".join(
+        f"<@{user_id}>"
+        for user_id in user_ids
+    )
+
+
 def build_activity_embed(
     activity: Activity,
     participants: list[ActivityParticipant],
@@ -99,29 +111,83 @@ def build_activity_embed(
             inline=False,
         )
 
-    if participants:
-        shown = participants[:15]
+    if (
+        activity.type == "close"
+        and activity.status != "open"
+    ):
+        team_a = [
+            participant.user_id
+            for participant in participants
+            if participant.role in {
+                "captain_a",
+                "team_a",
+            }
+        ]
 
-        participant_text = "\n".join(
-            f"<@{participant.user_id}>"
-            for participant in shown
+        team_b = [
+            participant.user_id
+            for participant in participants
+            if participant.role in {
+                "captain_b",
+                "team_b",
+            }
+        ]
+
+        waiting = [
+            participant.user_id
+            for participant in participants
+            if participant.role == "participant"
+        ]
+
+        embed.add_field(
+            name="TEAM A",
+            value=mention_list(
+                team_a
+            ),
+            inline=True,
         )
 
-        if len(participants) > 15:
-            participant_text += (
-                f"\nи ещё "
-                f"{len(participants) - 15}..."
+        embed.add_field(
+            name="TEAM B",
+            value=mention_list(
+                team_b
+            ),
+            inline=True,
+        )
+
+        if waiting:
+            embed.add_field(
+                name="Ожидают выбора",
+                value=mention_list(
+                    waiting
+                ),
+                inline=False,
             )
-    else:
-        participant_text = (
-            "Сад пока пуст."
-        )
 
-    embed.add_field(
-        name="Участники сада",
-        value=participant_text,
-        inline=False,
-    )
+    else:
+        if participants:
+            shown = participants[:15]
+
+            participant_text = "\n".join(
+                f"<@{participant.user_id}>"
+                for participant in shown
+            )
+
+            if len(participants) > 15:
+                participant_text += (
+                    f"\nи ещё "
+                    f"{len(participants) - 15}..."
+                )
+        else:
+            participant_text = (
+                "Сад пока пуст."
+            )
+
+        embed.add_field(
+            name="Участники сада",
+            value=participant_text,
+            inline=False,
+        )
 
     embed.set_footer(
         text=(
