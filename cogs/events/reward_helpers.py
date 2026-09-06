@@ -5,14 +5,8 @@ from config.economy import (
     EVENT_REWARD_PRESET_NAMES,
     EVENT_REWARD_PRESETS,
 )
-
-from services.achievements import (
-    check_achievements,
-)
-
-from services.level_roles import (
-    sync_level_role,
-)
+from services.achievements import check_achievements
+from services.level_roles import sync_level_role
 
 
 def format_reward(
@@ -103,6 +97,17 @@ async def process_xp_rewards(
     guild: discord.Guild,
     results,
 ) -> None:
+    user_ids = {
+        result.user_id
+        for result in results
+    }
+
+    for user_id in user_ids:
+        await check_achievements(
+            guild_id=guild.id,
+            user_id=user_id,
+        )
+
     xp_results = [
         result
         for result in results
@@ -113,11 +118,6 @@ async def process_xp_rewards(
     ]
 
     for result in xp_results:
-        await check_achievements(
-            guild_id=guild.id,
-            user_id=result.user_id,
-        )
-
         if (
             result.cases_gained <= 0
             or result.new_level is None
