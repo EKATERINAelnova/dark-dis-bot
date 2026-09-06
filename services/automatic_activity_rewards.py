@@ -14,6 +14,10 @@ from cogs.events.reward_helpers import (
 
 from database.connection import get_db
 
+from services.achievements import (
+    check_activity_participant_achievements,
+)
+
 from services.activities import (
     Activity,
 )
@@ -192,6 +196,11 @@ async def reward_duel_winner_automatically(
         guild_id=guild_id,
         activity_id=activity_id,
         winner_id=winner_id,
+    )
+
+    await check_activity_participant_achievements(
+        guild_id=guild_id,
+        activity_id=activity_id,
     )
 
     if status != "allowed":
