@@ -20,7 +20,7 @@ class Rituals(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="ritual",
+        name="ритуал",
         description="Провести ежедневный ритуал сада",
     )
     @app_commands.guild_only()
