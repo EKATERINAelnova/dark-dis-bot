@@ -138,9 +138,7 @@ async def create_activity(
             "Лимит участников должен быть больше 0"
         )
 
-    now = int(
-        time.time()
-    )
+    now = int(time.time())
 
     async with get_db() as db:
         cursor = await db.execute(
@@ -490,19 +488,37 @@ async def change_activity_status(
                     None,
                 )
 
-            await db.execute(
-                """
-                UPDATE activities
-                SET status = ?
-                WHERE guild_id = ?
-                  AND activity_id = ?
-                """,
-                (
-                    new_status,
-                    guild_id,
-                    activity_id,
-                ),
-            )
+            if new_status == "running":
+                await db.execute(
+                    """
+                    UPDATE activities
+                    SET
+                        status = ?,
+                        starts_at = COALESCE(starts_at, ?)
+                    WHERE guild_id = ?
+                      AND activity_id = ?
+                    """,
+                    (
+                        new_status,
+                        int(time.time()),
+                        guild_id,
+                        activity_id,
+                    ),
+                )
+            else:
+                await db.execute(
+                    """
+                    UPDATE activities
+                    SET status = ?
+                    WHERE guild_id = ?
+                      AND activity_id = ?
+                    """,
+                    (
+                        new_status,
+                        guild_id,
+                        activity_id,
+                    ),
+                )
 
             await db.commit()
 
