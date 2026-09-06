@@ -100,7 +100,7 @@ class Events(commands.Cog):
         )
 
     @app_commands.command(
-        name="event-create",
+        name="создать-ивент",
         description="Создать серверный ивент",
     )
     @app_commands.guild_only()
@@ -202,7 +202,7 @@ class Events(commands.Cog):
             )
 
     @app_commands.command(
-        name="event-start",
+        name="запустить-ивент",
         description="Запустить серверный ивент",
     )
     @app_commands.guild_only()
@@ -256,7 +256,7 @@ class Events(commands.Cog):
         )
 
     @app_commands.command(
-        name="event-finish",
+        name="завершить-ивент",
         description="Завершить серверный ивент",
     )
     @app_commands.guild_only()
@@ -350,7 +350,7 @@ class Events(commands.Cog):
         )
 
     @app_commands.command(
-        name="event-cancel",
+        name="отменить-ивент",
         description="Отменить серверный ивент",
     )
     @app_commands.guild_only()
@@ -404,7 +404,7 @@ class Events(commands.Cog):
         )
 
     @app_commands.command(
-        name="event-reward",
+        name="награда-ивента",
         description="Дополнительно наградить участников ивента",
     )
     @app_commands.guild_only()
