@@ -21,7 +21,7 @@ class ActivityLists(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="event-list",
+        name="ивенты",
         description="Показать активные серверные ивенты",
     )
     @app_commands.guild_only()
@@ -51,7 +51,7 @@ class ActivityLists(commands.Cog):
         )
 
     @app_commands.command(
-        name="duel-list",
+        name="дуэли",
         description="Показать активные дуэли",
     )
     @app_commands.guild_only()
