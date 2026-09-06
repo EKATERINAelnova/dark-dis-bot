@@ -6,6 +6,36 @@ CURRENCY_SYMBOL = "🍎"
 # ACTIVITY REWARDS
 # =========================================================
 
+EVENT_REWARD_PRESETS = {
+    "small": {
+        "currency": 20,
+        "xp": 15,
+        "case": 0,
+    },
+    "standard": {
+        "currency": 40,
+        "xp": 30,
+        "case": 0,
+    },
+    "major": {
+        "currency": 75,
+        "xp": 50,
+        "case": 1,
+    },
+}
+
+EVENT_REWARD_PRESET_NAMES = {
+    "small": "SMALL EVENT",
+    "standard": "EVENT",
+    "major": "MAJOR EVENT",
+}
+
+DUEL_WIN_REWARD = {
+    "currency": 25,
+    "xp": 20,
+    "case": 0,
+}
+
 MESSAGE_FUNDS = 1
 MESSAGE_FUNDS_COOLDOWN = 180
 MESSAGE_FUNDS_DAILY_LIMIT = 20
