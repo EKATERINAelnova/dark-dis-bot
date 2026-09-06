@@ -40,13 +40,6 @@ load_dotenv()
 def require_env(
     name: str,
 ) -> str:
-    """
-    Возвращает обязательную переменную окружения.
-
-    Если она отсутствует,
-    бот завершается сразу с понятной ошибкой.
-    """
-
     value = os.getenv(
         name
     )
@@ -71,11 +64,6 @@ def require_env(
 def require_int_env(
     name: str,
 ) -> int:
-    """
-    Возвращает обязательную числовую
-    переменную окружения.
-    """
-
     raw_value = require_env(
         name
     )
@@ -126,6 +114,7 @@ EXTENSIONS = [
     "cogs.rituals.rituals",
     "cogs.events.events",
     "cogs.events.duels",
+    "cogs.events.closes",
     "cogs.events.activity_lists",
 ]
 
@@ -153,10 +142,6 @@ class BotClient(
             intents=intents,
         )
 
-    # =====================================================
-    # SETUP
-    # =====================================================
-
     async def setup_hook(
         self,
     ) -> None:
@@ -183,7 +168,6 @@ class BotClient(
                     "расширение: %s",
                     extension,
                 )
-
                 raise
 
         guild = discord.Object(
@@ -206,7 +190,6 @@ class BotClient(
                 "Не удалось "
                 "синхронизировать команды"
             )
-
             raise
 
         logger.info(
@@ -215,16 +198,8 @@ class BotClient(
         )
 
 
-# =========================================================
-# CLIENT
-# =========================================================
-
 client = BotClient()
 
-
-# =========================================================
-# READY
-# =========================================================
 
 @client.event
 async def on_ready(
@@ -233,7 +208,6 @@ async def on_ready(
         logger.warning(
             "on_ready вызван без client.user"
         )
-
         return
 
     logger.info(
@@ -247,10 +221,6 @@ async def on_ready(
         len(client.guilds),
     )
 
-
-# =========================================================
-# GLOBAL SLASH ERROR HANDLER
-# =========================================================
 
 @client.tree.error
 async def on_app_command_error(
@@ -383,10 +353,6 @@ async def on_app_command_error(
             "сообщение об ошибке пользователю"
         )
 
-
-# =========================================================
-# RUN
-# =========================================================
 
 client.run(
     TOKEN
