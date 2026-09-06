@@ -4,16 +4,16 @@ from discord import app_commands
 from discord.ext import commands
 
 from config.economy import CURRENCY_SYMBOL
-
 from database.member_stats import get_member_stats
-
+from services.activity_progress import (
+    get_member_activity_progress,
+)
 from services.achievements import (
     ACHIEVEMENTS,
     check_achievements,
     get_achievement_value,
     get_unlocked_achievement_keys,
 )
-
 from utils.embeds import eden_embed
 
 
@@ -50,6 +50,11 @@ class Achievements(commands.Cog):
             user_id=interaction.user.id,
         )
 
+        activity_progress = await get_member_activity_progress(
+            guild_id=interaction.guild.id,
+            user_id=interaction.user.id,
+        )
+
         unlocked_keys = await get_unlocked_achievement_keys(
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
@@ -66,12 +71,12 @@ class Achievements(commands.Cog):
             value = get_achievement_value(
                 achievement,
                 stats,
+                activity_progress,
             )
 
             if unlocked:
                 icon = "◆"
                 progress = "Открыто"
-
             else:
                 icon = "◇"
 
@@ -80,6 +85,19 @@ class Achievements(commands.Cog):
                         f"{value // 60} / "
                         f"{achievement.target // 60} мин."
                     )
+
+                elif achievement.metric == "close_winrate":
+                    played = activity_progress.closes.participations
+
+                    if played < achievement.minimum_participations:
+                        progress = (
+                            f"{played} / "
+                            f"{achievement.minimum_participations} матчей"
+                        )
+                    else:
+                        progress = (
+                            f"{value}% / {achievement.target}%"
+                        )
 
                 else:
                     progress = (
@@ -92,7 +110,6 @@ class Achievements(commands.Cog):
                     f"{achievement.reward_amount} "
                     f"{CURRENCY_SYMBOL}"
                 )
-
             else:
                 reward_text = (
                     f"{achievement.reward_amount} "
