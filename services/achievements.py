@@ -3,10 +3,12 @@ import time
 from dataclasses import dataclass
 
 from config.economy import REASON_ACHIEVEMENT
-
 from database.connection import get_db
 from database.models import MemberStats
-
+from services.activity_progress import (
+    MemberActivityProgress,
+    get_member_activity_progress,
+)
 from utils.leveling import level_from_xp
 
 
@@ -15,12 +17,11 @@ class Achievement:
     key: str
     name: str
     description: str
-
     metric: str
     target: int
-
     reward_kind: str
     reward_amount: int
+    minimum_participations: int = 0
 
 
 ACHIEVEMENTS = [
@@ -33,7 +34,6 @@ ACHIEVEMENTS = [
         reward_kind="currency",
         reward_amount=20,
     ),
-
     Achievement(
         key="rooted",
         name="Пустить корни",
@@ -43,7 +43,6 @@ ACHIEVEMENTS = [
         reward_kind="case",
         reward_amount=1,
     ),
-
     Achievement(
         key="garden_whisper",
         name="Шёпот сада",
@@ -53,7 +52,6 @@ ACHIEVEMENTS = [
         reward_kind="currency",
         reward_amount=30,
     ),
-
     Achievement(
         key="branch_echo",
         name="Эхо среди ветвей",
@@ -63,7 +61,6 @@ ACHIEVEMENTS = [
         reward_kind="case",
         reward_amount=1,
     ),
-
     Achievement(
         key="earth_traces",
         name="Следы на земле",
@@ -73,7 +70,6 @@ ACHIEVEMENTS = [
         reward_kind="currency",
         reward_amount=100,
     ),
-
     Achievement(
         key="deep_roots",
         name="Глубокие корни",
@@ -83,17 +79,62 @@ ACHIEVEMENTS = [
         reward_kind="case",
         reward_amount=2,
     ),
+    Achievement(
+        key="close_first_match",
+        name="По ту сторону ворот",
+        description="Сыграть первый подтверждённый CLOSE",
+        metric="close_matches",
+        target=1,
+        reward_kind="currency",
+        reward_amount=15,
+    ),
+    Achievement(
+        key="close_first_win",
+        name="Первый разлом",
+        description="Одержать первую победу в CLOSE",
+        metric="close_wins",
+        target=1,
+        reward_kind="currency",
+        reward_amount=25,
+    ),
+    Achievement(
+        key="close_regular",
+        name="Знакомый путь",
+        description="Сыграть 10 подтверждённых CLOSE",
+        metric="close_matches",
+        target=10,
+        reward_kind="case",
+        reward_amount=1,
+    ),
+    Achievement(
+        key="close_winner",
+        name="Сад помнит победителей",
+        description="Одержать 10 побед в CLOSE",
+        metric="close_wins",
+        target=10,
+        reward_kind="case",
+        reward_amount=1,
+    ),
+    Achievement(
+        key="close_winrate",
+        name="Не случайность",
+        description="Держать 65% побед после 10 CLOSE",
+        metric="close_winrate",
+        target=65,
+        reward_kind="currency",
+        reward_amount=100,
+        minimum_participations=10,
+    ),
 ]
 
 
 def get_achievement_value(
     achievement: Achievement,
     stats: MemberStats,
+    activity_progress: MemberActivityProgress | None = None,
 ) -> int:
     if achievement.metric == "level":
-        return level_from_xp(
-            stats.xp
-        )
+        return level_from_xp(stats.xp)
 
     if achievement.metric == "messages":
         return stats.messages
@@ -101,7 +142,34 @@ def get_achievement_value(
     if achievement.metric == "voice":
         return stats.voice_seconds
 
+    if activity_progress is None:
+        return 0
+
+    if achievement.metric == "close_matches":
+        return activity_progress.closes.participations
+
+    if achievement.metric == "close_wins":
+        return activity_progress.closes.wins
+
+    if achievement.metric == "close_winrate":
+        return activity_progress.closes.winrate
+
     return 0
+
+
+def achievement_is_ready(
+    achievement: Achievement,
+    value: int,
+    activity_progress: MemberActivityProgress,
+) -> bool:
+    if (
+        achievement.metric == "close_winrate"
+        and activity_progress.closes.participations
+        < achievement.minimum_participations
+    ):
+        return False
+
+    return value >= achievement.target
 
 
 async def get_unlocked_achievement_keys(
@@ -116,10 +184,7 @@ async def get_unlocked_achievement_keys(
             WHERE guild_id = ?
               AND user_id = ?
             """,
-            (
-                guild_id,
-                user_id,
-            ),
+            (guild_id, user_id),
         )
 
         rows = await cursor.fetchall()
@@ -137,11 +202,14 @@ async def check_achievements(
 ) -> list[Achievement]:
     unlocked_now = []
 
+    activity_progress = await get_member_activity_progress(
+        guild_id=guild_id,
+        user_id=user_id,
+    )
+
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             await db.execute(
                 """
@@ -151,10 +219,7 @@ async def check_achievements(
                 )
                 VALUES (?, ?)
                 """,
-                (
-                    guild_id,
-                    user_id,
-                ),
+                (guild_id, user_id),
             )
 
             cursor = await db.execute(
@@ -171,10 +236,7 @@ async def check_achievements(
                 WHERE guild_id = ?
                   AND user_id = ?
                 """,
-                (
-                    guild_id,
-                    user_id,
-                ),
+                (guild_id, user_id),
             )
 
             row = await cursor.fetchone()
@@ -199,9 +261,14 @@ async def check_achievements(
                 value = get_achievement_value(
                     achievement,
                     stats,
+                    activity_progress,
                 )
 
-                if value < achievement.target:
+                if not achievement_is_ready(
+                    achievement,
+                    value,
+                    activity_progress,
+                ):
                     continue
 
                 cursor = await db.execute(
@@ -222,10 +289,7 @@ async def check_achievements(
                     ),
                 )
 
-                was_added = (
-                    cursor.rowcount == 1
-                )
-
+                was_added = cursor.rowcount == 1
                 await cursor.close()
 
                 if not was_added:
@@ -291,12 +355,9 @@ async def check_achievements(
                         f"{achievement.reward_kind}"
                     )
 
-                unlocked_now.append(
-                    achievement
-                )
+                unlocked_now.append(achievement)
 
             await db.commit()
-
             return unlocked_now
 
         except Exception:
