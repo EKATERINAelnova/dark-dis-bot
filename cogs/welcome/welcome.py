@@ -42,10 +42,6 @@ class Welcome(commands.Cog):
                 "неверный формат"
             )
 
-    # =========================================================
-    # EMBED
-    # =========================================================
-
     def create_welcome_embed(
         self,
         member: discord.Member,
@@ -65,21 +61,18 @@ class Welcome(commands.Cog):
             description=(
                 f"Приветствуем в Саду, "
                 f"{member.mention}!\n\n"
-
                 f"Ты стал(а) "
                 f"**{member_count}-й** душой, "
                 f"нашедшей пристанище "
                 f"в **LOST EDEN**.\n\n"
-
                 f"📜 **Первые шаги:**\n"
                 f"• Ознакомься с правилами "
                 f"и структурой сервера\n"
                 f"• Проверь свой статус "
-                f"и карточку через `/profile`\n"
+                f"и карточку через `/профиль`\n"
                 f"• Присоединяйся к общению "
                 f"в текстовых и голосовых "
                 f"каналах\n\n"
-
                 f"> *«We don't return. "
                 f"We rebuild.»*"
             ),
@@ -103,10 +96,6 @@ class Welcome(commands.Cog):
 
         return embed
 
-    # =========================================================
-    # MEMBER JOIN
-    # =========================================================
-
     @commands.Cog.listener()
     async def on_member_join(
         self,
@@ -117,16 +106,10 @@ class Welcome(commands.Cog):
 
         guild = member.guild
 
-        # =====================================================
-        # DATABASE
-        # =====================================================
-
         try:
             await ensure_members_exist(
                 guild_id=guild.id,
-                user_ids=[
-                    member.id
-                ],
+                user_ids=[member.id],
             )
 
             logger.info(
@@ -141,11 +124,6 @@ class Welcome(commands.Cog):
             )
 
         except Exception:
-            # Ошибка БД не должна уничтожить
-            # само welcome-сообщение.
-            #
-            # Activity позже сможет создать
-            # запись участника повторно.
             logger.exception(
                 (
                     "Не удалось зарегистрировать "
@@ -156,16 +134,8 @@ class Welcome(commands.Cog):
                 member.id,
             )
 
-        # =====================================================
-        # CONFIG
-        # =====================================================
-
         if self.welcome_channel_id is None:
             return
-
-        # =====================================================
-        # CHANNEL
-        # =====================================================
 
         channel = guild.get_channel(
             self.welcome_channel_id
@@ -182,11 +152,8 @@ class Welcome(commands.Cog):
                 guild.id,
                 self.welcome_channel_id,
             )
-
             return
 
-        # В .env можно случайно вставить
-        # ID голосового канала или категории.
         if not isinstance(
             channel,
             discord.TextChannel,
@@ -204,21 +171,12 @@ class Welcome(commands.Cog):
                 channel.id,
                 type(channel).__name__,
             )
-
             return
-
-        # =====================================================
-        # EMBED
-        # =====================================================
 
         embed = self.create_welcome_embed(
             member=member,
             guild=guild,
         )
-
-        # =====================================================
-        # SEND
-        # =====================================================
 
         try:
             await channel.send(
@@ -241,7 +199,6 @@ class Welcome(commands.Cog):
                 channel.name,
                 channel.id,
             )
-
             return
 
         except discord.HTTPException as error:
@@ -259,7 +216,6 @@ class Welcome(commands.Cog):
                 error.status,
                 error,
             )
-
             return
 
         except Exception:
@@ -272,7 +228,6 @@ class Welcome(commands.Cog):
                 guild.id,
                 member.id,
             )
-
             return
 
         logger.info(
