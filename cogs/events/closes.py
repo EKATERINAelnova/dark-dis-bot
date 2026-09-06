@@ -17,6 +17,13 @@ from services.activities import (
     set_activity_message,
 )
 
+from services.close_results import (
+    confirm_close_result,
+    dispute_close_result,
+    init_close_results,
+    propose_close_result,
+)
+
 from services.close_teams import (
     TEAM_MODE_CAPTAINS,
     TEAM_MODE_RANDOM,
@@ -46,6 +53,7 @@ class Closes(commands.Cog):
         self,
     ) -> None:
         await init_close_teams()
+        await init_close_results()
 
         activities = await get_open_activities(
             activity_type="close"
@@ -499,6 +507,196 @@ class Closes(commands.Cog):
 
         await interaction.followup.send(
             text,
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="результат-клоза",
+        description="Указать победившую команду CLOSE",
+    )
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(
+        manage_guild=True
+    )
+    @app_commands.choices(
+        winner_team=[
+            app_commands.Choice(
+                name="Команда A",
+                value="a",
+            ),
+            app_commands.Choice(
+                name="Команда B",
+                value="b",
+            ),
+        ]
+    )
+    async def close_result(
+        self,
+        interaction: discord.Interaction,
+        activity_id: int,
+        winner_team: app_commands.Choice[str],
+    ):
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        activity = await get_activity_for_command(
+            interaction=interaction,
+            activity_id=activity_id,
+            activity_type="close",
+        )
+
+        if activity is None:
+            return
+
+        result = await propose_close_result(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            winner_team=winner_team.value,
+            submitted_by=interaction.user.id,
+        )
+
+        messages = {
+            "not_running": "Этот CLOSE сейчас не идёт.",
+            "teams_incomplete": "Сначала полностью сформируй команды.",
+            "already_pending": "Результат этого CLOSE уже ожидает подтверждения.",
+            "not_found": "CLOSE не найден.",
+        }
+
+        if result != "created":
+            await interaction.followup.send(
+                messages.get(
+                    result,
+                    "Не удалось сохранить результат CLOSE.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        losing_team = (
+            "B"
+            if winner_team.value == "a"
+            else "A"
+        )
+
+        await interaction.followup.send(
+            (
+                f"Победителем CLOSE **#{activity_id}** указана "
+                f"**команда {winner_team.name[-1]}**.\n"
+                f"Результат должен подтвердить представитель "
+                f"команды {losing_team}."
+            ),
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="подтвердить-клоз",
+        description="Подтвердить результат CLOSE",
+    )
+    @app_commands.guild_only()
+    async def confirm_close(
+        self,
+        interaction: discord.Interaction,
+        activity_id: int,
+    ):
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        status, activity = await confirm_close_result(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            confirmed_by=interaction.user.id,
+        )
+
+        messages = {
+            "not_allowed": (
+                "Подтвердить результат должен представитель "
+                "проигравшей команды."
+            ),
+            "not_found": "Ожидающий подтверждения результат не найден.",
+            "not_pending": "Этот результат уже не ожидает подтверждения.",
+            "not_running": "Этот CLOSE уже не идёт.",
+        }
+
+        if (
+            status != "confirmed"
+            or activity is None
+        ):
+            await interaction.followup.send(
+                messages.get(
+                    status,
+                    "Не удалось подтвердить результат CLOSE.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        await self.refresh_close_message(
+            activity
+        )
+
+        await interaction.followup.send(
+            (
+                f"Результат CLOSE **#{activity_id}** подтверждён.\n"
+                "Матч записан в общий прогресс."
+            ),
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="оспорить-клоз",
+        description="Оспорить предложенный результат CLOSE",
+    )
+    @app_commands.guild_only()
+    async def dispute_close(
+        self,
+        interaction: discord.Interaction,
+        activity_id: int,
+    ):
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        result = await dispute_close_result(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            disputed_by=interaction.user.id,
+        )
+
+        messages = {
+            "not_allowed": (
+                "Оспорить результат должен представитель "
+                "проигравшей команды."
+            ),
+            "not_found": "Ожидающий подтверждения результат не найден.",
+            "not_pending": "Этот результат уже не ожидает подтверждения.",
+        }
+
+        if result != "disputed":
+            await interaction.followup.send(
+                messages.get(
+                    result,
+                    "Не удалось оспорить результат CLOSE.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.followup.send(
+            (
+                f"Результат CLOSE **#{activity_id}** отклонён.\n"
+                "Администратор может указать результат заново."
+            ),
             ephemeral=True,
         )
 
