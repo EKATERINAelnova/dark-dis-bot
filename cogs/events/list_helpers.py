@@ -124,3 +124,54 @@ async def build_duel_list_embed(
         )
 
     return embed
+
+
+async def build_close_list_embed(
+    activities: list[Activity],
+) -> discord.Embed:
+    embed = eden_embed(
+        title="✦ ACTIVE CLOSES",
+        description=(
+            "Открытые наборы и запущенные CLOSE."
+        ),
+    )
+
+    if not activities:
+        embed.description = (
+            "Сейчас активных CLOSE нет."
+        )
+        return embed
+
+    for activity in activities:
+        participants = await get_activity_participants(
+            activity.activity_id
+        )
+
+        status = STATUS_NAMES.get(
+            activity.status,
+            activity.status.upper(),
+        )
+
+        if activity.max_participants is None:
+            participants_text = str(
+                len(participants)
+            )
+        else:
+            participants_text = (
+                f"{len(participants)} / "
+                f"{activity.max_participants}"
+            )
+
+        embed.add_field(
+            name=(
+                f"CLOSE #{activity.activity_id} · "
+                f"{activity.title}"
+            ),
+            value=(
+                f"`{status}` · "
+                f"Участники: **{participants_text}**"
+            ),
+            inline=False,
+        )
+
+    return embed
