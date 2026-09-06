@@ -463,7 +463,9 @@ async def prepare_captain_draft(
             turn = (
                 "done"
                 if len(players) == 2
-                else "a"
+                else secrets.choice(
+                    ("a", "b")
+                )
             )
 
             await db.execute(
