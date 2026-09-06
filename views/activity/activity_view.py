@@ -2,6 +2,10 @@ import asyncio
 
 import discord
 
+from cogs.events.reward_helpers import (
+    format_event_reward_preset,
+)
+
 from services.activities import (
     Activity,
     ActivityParticipant,
@@ -86,6 +90,15 @@ def build_activity_embed(
         inline=True,
     )
 
+    if activity.type == "event":
+        embed.add_field(
+            name="Награда",
+            value=format_event_reward_preset(
+                activity.reward_preset
+            ),
+            inline=False,
+        )
+
     if participants:
         shown = participants[:15]
 
@@ -131,12 +144,7 @@ class ActivityView(
         )
 
         self.activity_id = activity_id
-
-        # Не даём двум кликам одновременно
-        # перезаписать карточку.
-        self.action_lock = (
-            asyncio.Lock()
-        )
+        self.action_lock = asyncio.Lock()
 
     def disable_buttons(
         self,
