@@ -9,8 +9,15 @@ from cogs.events.common import (
 )
 
 from cogs.events.reward_helpers import (
+    encode_custom_event_reward,
     format_reward,
     process_xp_rewards,
+)
+
+from config.economy import (
+    EVENT_MAX_CASE_REWARD,
+    EVENT_MAX_CURRENCY_REWARD,
+    EVENT_MAX_XP_REWARD,
 )
 
 from services.activities import (
@@ -46,11 +53,6 @@ class Events(commands.Cog):
     async def cog_load(
         self,
     ) -> None:
-        await self.restore_open_events()
-
-    async def restore_open_events(
-        self,
-    ) -> None:
         activities = await get_open_activities(
             activity_type="event"
         )
@@ -78,10 +80,8 @@ class Events(commands.Cog):
         if message is None:
             return
 
-        participants = (
-            await get_activity_participants(
-                activity_id=activity.activity_id
-            )
+        participants = await get_activity_participants(
+            activity_id=activity.activity_id
         )
 
         view = ActivityView(
@@ -107,28 +107,26 @@ class Events(commands.Cog):
     @app_commands.checks.has_permissions(
         manage_guild=True
     )
-    @app_commands.choices(
-        reward=[
-            app_commands.Choice(
-                name="SMALL · 20 🍎 + 15 XP",
-                value="small",
-            ),
-            app_commands.Choice(
-                name="EVENT · 40 🍎 + 30 XP",
-                value="standard",
-            ),
-            app_commands.Choice(
-                name="MAJOR · 75 🍎 + 50 XP + 1 CASE",
-                value="major",
-            ),
-        ]
-    )
     async def create_event(
         self,
         interaction: discord.Interaction,
         title: str,
         description: str,
-        reward: app_commands.Choice[str],
+        currency: app_commands.Range[
+            int,
+            0,
+            EVENT_MAX_CURRENCY_REWARD,
+        ] = 0,
+        xp: app_commands.Range[
+            int,
+            0,
+            EVENT_MAX_XP_REWARD,
+        ] = 0,
+        cases: app_commands.Range[
+            int,
+            0,
+            EVENT_MAX_CASE_REWARD,
+        ] = 0,
         max_participants: app_commands.Range[
             int,
             1,
@@ -140,6 +138,12 @@ class Events(commands.Cog):
 
         await interaction.response.defer()
 
+        reward_value = encode_custom_event_reward(
+            currency=currency,
+            xp=xp,
+            cases=cases,
+        )
+
         try:
             activity = await create_activity(
                 guild_id=interaction.guild.id,
@@ -148,7 +152,7 @@ class Events(commands.Cog):
                 description=description,
                 host_id=interaction.user.id,
                 max_participants=max_participants,
-                reward_preset=reward.value,
+                reward_preset=reward_value,
             )
 
         except ValueError as error:
@@ -193,10 +197,7 @@ class Events(commands.Cog):
             )
 
             await interaction.followup.send(
-                (
-                    "Не удалось опубликовать EVENT. "
-                    "Он был отменён."
-                ),
+                "Не удалось опубликовать EVENT. Он отменён.",
                 ephemeral=True,
             )
 
@@ -229,12 +230,10 @@ class Events(commands.Cog):
         if activity is None:
             return
 
-        status, activity = (
-            await change_activity_status(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                new_status="running",
-            )
+        status, activity = await change_activity_status(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            new_status="running",
         )
 
         if (
@@ -285,12 +284,10 @@ class Events(commands.Cog):
         if activity is None:
             return
 
-        status, activity = (
-            await change_activity_status(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                new_status="finished",
-            )
+        status, activity = await change_activity_status(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            new_status="finished",
         )
 
         if (
@@ -304,13 +301,12 @@ class Events(commands.Cog):
             return
 
         reward_results = []
+        reward_error = None
 
         try:
-            reward_results = (
-                await reward_event_automatically(
-                    activity=activity,
-                    actor_id=interaction.user.id,
-                )
+            reward_results = await reward_event_automatically(
+                activity=activity,
+                actor_id=interaction.user.id,
             )
 
             await process_xp_rewards(
@@ -319,6 +315,7 @@ class Events(commands.Cog):
             )
 
         except Exception as error:
+            reward_error = error
             print(
                 f"[EVENT AUTO REWARD] {error}"
             )
@@ -333,23 +330,19 @@ class Events(commands.Cog):
             if result.status == "granted"
         }
 
-        text = (
-            f"EVENT **#{activity_id}** завершён."
-        )
+        text = f"EVENT **#{activity_id}** завершён."
 
-        if granted_users:
+        if reward_error is not None:
+            text += "\nАвтоматическая награда не выдалась."
+        elif granted_users:
             text += (
-                f"\nНаграды автоматически получили: "
+                f"\nНаграды получили: "
                 f"**{len(granted_users)}**."
             )
         elif reward_results:
-            text += (
-                "\nАвтоматические награды уже были выданы."
-            )
+            text += "\nНаграды уже были выданы."
         else:
-            text += (
-                "\nУчастников для награждения нет."
-            )
+            text += "\nНаграждать некого или награда нулевая."
 
         await interaction.followup.send(
             text,
@@ -385,12 +378,10 @@ class Events(commands.Cog):
         if activity is None:
             return
 
-        status, activity = (
-            await change_activity_status(
-                guild_id=interaction.guild.id,
-                activity_id=activity_id,
-                new_status="cancelled",
-            )
+        status, activity = await change_activity_status(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            new_status="cancelled",
         )
 
         if (
@@ -444,7 +435,7 @@ class Events(commands.Cog):
         amount: app_commands.Range[
             int,
             1,
-            10000,
+            500,
         ],
     ):
         if interaction.guild is None:
@@ -465,19 +456,22 @@ class Events(commands.Cog):
 
         if activity.status != "finished":
             await interaction.followup.send(
-                (
-                    "Дополнительную награду можно выдать "
-                    "только после завершения EVENT."
-                ),
+                "Дополнительная награда доступна после EVENT.",
                 ephemeral=True,
             )
             return
 
         kind = reward_kind.value
 
-        if kind == "case" and amount > 10:
+        if (
+            kind == "case"
+            and amount > EVENT_MAX_CASE_REWARD
+        ):
             await interaction.followup.send(
-                "Нельзя выдать больше 10 EDEN CASE.",
+                (
+                    f"Нельзя выдать больше "
+                    f"{EVENT_MAX_CASE_REWARD} EDEN CASE."
+                ),
                 ephemeral=True,
             )
             return
@@ -490,13 +484,6 @@ class Events(commands.Cog):
             actor_id=interaction.user.id,
             reward_prefix="manual",
         )
-
-        if not results:
-            await interaction.followup.send(
-                "У этого EVENT нет участников.",
-                ephemeral=True,
-            )
-            return
 
         granted = [
             result
@@ -517,10 +504,7 @@ class Events(commands.Cog):
 
         if not granted:
             await interaction.followup.send(
-                (
-                    f"Дополнительная награда "
-                    f"**{reward_text}** уже выдавалась."
-                ),
+                f"Награда **{reward_text}** уже выдавалась.",
                 ephemeral=True,
             )
             return
