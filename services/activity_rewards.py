@@ -2,8 +2,6 @@ import time
 
 from dataclasses import dataclass
 
-from config.economy import REASON_EVENT
-
 from database.connection import get_db
 
 from utils.leveling import level_from_xp
@@ -19,12 +17,9 @@ REWARD_KINDS = {
 @dataclass(frozen=True)
 class ActivityRewardResult:
     status: str
-
     user_id: int
-
     reward_kind: str
     amount: int
-
     new_level: int | None = None
     cases_gained: int = 0
 
@@ -40,8 +35,7 @@ async def grant_activity_reward(
 ) -> ActivityRewardResult:
     if reward_kind not in REWARD_KINDS:
         raise ValueError(
-            f"Неизвестный тип награды: "
-            f"{reward_kind}"
+            f"Неизвестный тип награды: {reward_kind}"
         )
 
     if amount <= 0:
@@ -56,10 +50,7 @@ async def grant_activity_reward(
             "reward_key не может быть пустым"
         )
 
-    now = int(
-        time.time()
-    )
-
+    now = int(time.time())
     new_level = None
     cases_gained = 0
 
@@ -69,10 +60,11 @@ async def grant_activity_reward(
                 "BEGIN IMMEDIATE"
             )
 
-            # Проверяем активность
             cursor = await db.execute(
                 """
-                SELECT status
+                SELECT
+                    status,
+                    type
                 FROM activities
                 WHERE guild_id = ?
                   AND activity_id = ?
@@ -83,15 +75,11 @@ async def grant_activity_reward(
                 ),
             )
 
-            activity_row = (
-                await cursor.fetchone()
-            )
-
+            activity_row = await cursor.fetchone()
             await cursor.close()
 
             if activity_row is None:
                 await db.rollback()
-
                 return ActivityRewardResult(
                     status="not_found",
                     user_id=user_id,
@@ -99,9 +87,11 @@ async def grant_activity_reward(
                     amount=amount,
                 )
 
-            if str(activity_row[0]) != "finished":
-                await db.rollback()
+            activity_status = str(activity_row[0])
+            activity_type = str(activity_row[1])
 
+            if activity_status != "finished":
+                await db.rollback()
                 return ActivityRewardResult(
                     status="not_finished",
                     user_id=user_id,
@@ -109,7 +99,6 @@ async def grant_activity_reward(
                     amount=amount,
                 )
 
-            # Пользователь должен участвовать
             cursor = await db.execute(
                 """
                 SELECT 1
@@ -123,15 +112,11 @@ async def grant_activity_reward(
                 ),
             )
 
-            participant = (
-                await cursor.fetchone()
-            )
-
+            participant = await cursor.fetchone()
             await cursor.close()
 
             if participant is None:
                 await db.rollback()
-
                 return ActivityRewardResult(
                     status="not_participant",
                     user_id=user_id,
@@ -153,9 +138,6 @@ async def grant_activity_reward(
                 ),
             )
 
-            # Сначала резервируем выплату.
-            # Если что-то дальше сломается,
-            # вся транзакция откатится.
             cursor = await db.execute(
                 """
                 INSERT OR IGNORE INTO activity_payouts (
@@ -180,15 +162,11 @@ async def grant_activity_reward(
                 ),
             )
 
-            was_added = (
-                cursor.rowcount == 1
-            )
-
+            was_added = cursor.rowcount == 1
             await cursor.close()
 
             if not was_added:
                 await db.rollback()
-
                 return ActivityRewardResult(
                     status="already_granted",
                     user_id=user_id,
@@ -228,7 +206,7 @@ async def grant_activity_reward(
                         guild_id,
                         user_id,
                         amount,
-                        REASON_EVENT,
+                        f"{activity_type}_reward",
                         (
                             f"activity:{activity_id}:"
                             f"{reward_key}"
@@ -275,22 +253,10 @@ async def grant_activity_reward(
                         "Не удалось получить XP"
                     )
 
-                old_xp = int(
-                    row[0]
-                )
-
-                old_level = level_from_xp(
-                    old_xp
-                )
-
-                new_xp = (
-                    old_xp
-                    + amount
-                )
-
-                new_level = level_from_xp(
-                    new_xp
-                )
+                old_xp = int(row[0])
+                old_level = level_from_xp(old_xp)
+                new_xp = old_xp + amount
+                new_level = level_from_xp(new_xp)
 
                 cases_gained = max(
                     0,
@@ -336,6 +302,7 @@ async def reward_activity_participants(
     reward_kind: str,
     amount: int,
     actor_id: int | None = None,
+    reward_prefix: str = "participant",
 ) -> list[ActivityRewardResult]:
     async with get_db() as db:
         cursor = await db.execute(
@@ -354,28 +321,22 @@ async def reward_activity_participants(
         await cursor.close()
 
     reward_key = (
-        f"participant:{reward_kind}"
+        f"{reward_prefix}:{reward_kind}"
     )
 
     results = []
 
     for row in rows:
-        user_id = int(
-            row[0]
-        )
-
         result = await grant_activity_reward(
             guild_id=guild_id,
             activity_id=activity_id,
-            user_id=user_id,
+            user_id=int(row[0]),
             reward_key=reward_key,
             reward_kind=reward_kind,
             amount=amount,
             actor_id=actor_id,
         )
 
-        results.append(
-            result
-        )
+        results.append(result)
 
     return results
