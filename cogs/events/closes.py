@@ -377,10 +377,29 @@ class Closes(commands.Cog):
                 "Команды распределены случайно."
             )
         else:
-            text = (
-                f"CLOSE **#{activity_id}** запущен.\n"
-                "Капитан команды A выбирает первым."
+            updated_settings = await get_close_settings(
+                activity_id
             )
+
+            if (
+                updated_settings is None
+                or updated_settings.draft_turn == "done"
+            ):
+                text = (
+                    f"CLOSE **#{activity_id}** запущен.\n"
+                    "Команды уже сформированы."
+                )
+            else:
+                first_captain_id = (
+                    updated_settings.captain_a_id
+                    if updated_settings.draft_turn == "a"
+                    else updated_settings.captain_b_id
+                )
+
+                text = (
+                    f"CLOSE **#{activity_id}** запущен.\n"
+                    f"Первым выбирает <@{first_captain_id}>."
+                )
 
         await interaction.followup.send(
             text,
@@ -458,10 +477,25 @@ class Closes(commands.Cog):
                 "Команды полностью сформированы."
             )
         else:
-            text = (
-                f"{player.mention} добавлен в команду.\n"
-                "Теперь выбирает второй капитан."
+            updated_settings = await get_close_settings(
+                activity_id
             )
+
+            if updated_settings is None:
+                text = (
+                    f"{player.mention} добавлен в команду."
+                )
+            else:
+                next_captain_id = (
+                    updated_settings.captain_a_id
+                    if updated_settings.draft_turn == "a"
+                    else updated_settings.captain_b_id
+                )
+
+                text = (
+                    f"{player.mention} добавлен в команду.\n"
+                    f"Теперь выбирает <@{next_captain_id}>."
+                )
 
         await interaction.followup.send(
             text,
