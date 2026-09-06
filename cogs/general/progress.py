@@ -65,6 +65,16 @@ class Progress(commands.Cog):
             inline=False,
         )
 
+        embed.add_field(
+            name="CLOSES",
+            value=(
+                f"Сыграно: **{progress.closes.participations}**\n"
+                f"Побед: **{progress.closes.wins}**\n"
+                f"Winrate: **{progress.closes.winrate}%**"
+            ),
+            inline=False,
+        )
+
         embed.set_thumbnail(
             url=user.display_avatar.url
         )
