@@ -125,6 +125,7 @@ EXTENSIONS = [
     "cogs.rituals.rituals",
     "cogs.events.events",
     "cogs.events.duels",
+    "cogs.events.activity_lists",
 ]
 
 
@@ -272,10 +273,6 @@ async def on_app_command_error(
     а полная техническая ошибка остаётся в логах.
     """
 
-    # =====================================================
-    # USER DOES NOT HAVE PERMISSIONS
-    # =====================================================
-
     if isinstance(
         error,
         app_commands.MissingPermissions,
@@ -287,10 +284,6 @@ async def on_app_command_error(
                 "для выполнения этой команды."
             ),
         )
-
-    # =====================================================
-    # BOT DOES NOT HAVE PERMISSIONS
-    # =====================================================
 
     elif isinstance(
         error,
@@ -304,10 +297,6 @@ async def on_app_command_error(
             ),
         )
 
-    # =====================================================
-    # SERVER ONLY
-    # =====================================================
-
     elif isinstance(
         error,
         app_commands.NoPrivateMessage,
@@ -319,10 +308,6 @@ async def on_app_command_error(
                 "только внутри сервера."
             ),
         )
-
-    # =====================================================
-    # COOLDOWN
-    # =====================================================
 
     elif isinstance(
         error,
@@ -345,10 +330,6 @@ async def on_app_command_error(
             ),
         )
 
-    # =====================================================
-    # CHECK FAILED
-    # =====================================================
-
     elif isinstance(
         error,
         app_commands.CheckFailure,
@@ -361,10 +342,6 @@ async def on_app_command_error(
             ),
         )
 
-    # =====================================================
-    # UNKNOWN ERROR
-    # =====================================================
-
     else:
         embed = error_embed(
             title="Что-то пошло не так",
@@ -374,8 +351,6 @@ async def on_app_command_error(
             ),
         )
 
-        # CommandInvokeError хранит
-        # исходную ошибку в .original.
         original_error = getattr(
             error,
             "original",
@@ -404,10 +379,6 @@ async def on_app_command_error(
                 original_error.__traceback__,
             ),
         )
-
-    # =====================================================
-    # RESPONSE
-    # =====================================================
 
     try:
         if interaction.response.is_done():
