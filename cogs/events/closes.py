@@ -10,6 +10,7 @@ from cogs.events.common import (
 from cogs.events.reward_helpers import process_xp_rewards
 from config.economy import (
     CLOSE_PARTICIPATION_XP,
+    CLOSE_REWARD_DAILY_LIMIT,
     CLOSE_WIN_BONUS_CURRENCY,
     CLOSE_WIN_BONUS_XP,
 )
@@ -577,12 +578,25 @@ class Closes(commands.Cog):
         if reward_error is not None:
             text += "\nНаграду не удалось начислить, проверь логи бота."
         else:
+            limited_users = {
+                result.user_id
+                for result in reward_results
+                if result.status == "daily_limit"
+            }
+
             text += (
                 f"\nУчастие: **+{CLOSE_PARTICIPATION_XP} XP**."
                 f"\nПобедители дополнительно: "
                 f"**+{CLOSE_WIN_BONUS_XP} XP** и "
                 f"**+{CLOSE_WIN_BONUS_CURRENCY} 🍎**."
             )
+
+            if limited_users:
+                text += (
+                    f"\nБез награды из-за лимита "
+                    f"**{CLOSE_REWARD_DAILY_LIMIT} CLOSE / 24 ч.**: "
+                    f"**{len(limited_users)}** участник(а)."
+                )
 
         await interaction.followup.send(
             text,
