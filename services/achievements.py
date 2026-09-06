@@ -79,6 +79,82 @@ ACHIEVEMENTS = [
         reward_kind="case",
         reward_amount=2,
     ),
+
+    Achievement(
+        key="event_first",
+        name="Первый зов",
+        description="Завершить первый EVENT как участник",
+        metric="event_matches",
+        target=1,
+        reward_kind="currency",
+        reward_amount=15,
+    ),
+    Achievement(
+        key="event_regular",
+        name="Там, где собираются души",
+        description="Принять участие в 5 завершённых EVENT",
+        metric="event_matches",
+        target=5,
+        reward_kind="currency",
+        reward_amount=40,
+    ),
+    Achievement(
+        key="event_veteran",
+        name="Свидетель сада",
+        description="Принять участие в 20 завершённых EVENT",
+        metric="event_matches",
+        target=20,
+        reward_kind="case",
+        reward_amount=1,
+    ),
+
+    Achievement(
+        key="duel_first_match",
+        name="Первый вызов",
+        description="Завершить первую подтверждённую DUEL",
+        metric="duel_matches",
+        target=1,
+        reward_kind="currency",
+        reward_amount=10,
+    ),
+    Achievement(
+        key="duel_first_win",
+        name="Первая зарубка",
+        description="Одержать первую победу в DUEL",
+        metric="duel_wins",
+        target=1,
+        reward_kind="currency",
+        reward_amount=20,
+    ),
+    Achievement(
+        key="duel_regular",
+        name="По лезвию",
+        description="Завершить 10 подтверждённых DUEL",
+        metric="duel_matches",
+        target=10,
+        reward_kind="case",
+        reward_amount=1,
+    ),
+    Achievement(
+        key="duel_winner",
+        name="Имя на коре",
+        description="Одержать 10 побед в DUEL",
+        metric="duel_wins",
+        target=10,
+        reward_kind="case",
+        reward_amount=1,
+    ),
+    Achievement(
+        key="duel_winrate",
+        name="Твёрдая рука",
+        description="Держать 65% побед после 10 DUEL",
+        metric="duel_winrate",
+        target=65,
+        reward_kind="currency",
+        reward_amount=75,
+        minimum_participations=10,
+    ),
+
     Achievement(
         key="close_first_match",
         name="По ту сторону ворот",
@@ -145,6 +221,18 @@ def get_achievement_value(
     if activity_progress is None:
         return 0
 
+    if achievement.metric == "event_matches":
+        return activity_progress.events.participations
+
+    if achievement.metric == "duel_matches":
+        return activity_progress.duels.participations
+
+    if achievement.metric == "duel_wins":
+        return activity_progress.duels.wins
+
+    if achievement.metric == "duel_winrate":
+        return activity_progress.duels.winrate
+
     if achievement.metric == "close_matches":
         return activity_progress.closes.participations
 
@@ -157,17 +245,33 @@ def get_achievement_value(
     return 0
 
 
+def get_metric_participations(
+    achievement: Achievement,
+    activity_progress: MemberActivityProgress,
+) -> int:
+    if achievement.metric == "duel_winrate":
+        return activity_progress.duels.participations
+
+    if achievement.metric == "close_winrate":
+        return activity_progress.closes.participations
+
+    return 0
+
+
 def achievement_is_ready(
     achievement: Achievement,
     value: int,
     activity_progress: MemberActivityProgress,
 ) -> bool:
-    if (
-        achievement.metric == "close_winrate"
-        and activity_progress.closes.participations
-        < achievement.minimum_participations
-    ):
-        return False
+    if achievement.minimum_participations > 0:
+        if (
+            get_metric_participations(
+                achievement,
+                activity_progress,
+            )
+            < achievement.minimum_participations
+        ):
+            return False
 
     return value >= achievement.target
 
@@ -363,3 +467,36 @@ async def check_achievements(
         except Exception:
             await db.rollback()
             raise
+
+
+async def check_activity_participant_achievements(
+    guild_id: int,
+    activity_id: int,
+) -> dict[int, list[Achievement]]:
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT user_id
+            FROM activity_participants
+            WHERE activity_id = ?
+            ORDER BY joined_at ASC
+            """,
+            (activity_id,),
+        )
+
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    unlocked = {}
+
+    for row in rows:
+        user_id = int(row[0])
+        unlocked_now = await check_achievements(
+            guild_id=guild_id,
+            user_id=user_id,
+        )
+
+        if unlocked_now:
+            unlocked[user_id] = unlocked_now
+
+    return unlocked
