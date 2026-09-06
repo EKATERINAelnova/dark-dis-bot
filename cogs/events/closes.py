@@ -7,7 +7,6 @@ from cogs.events.common import (
     fetch_activity_message,
     get_activity_for_command,
 )
-
 from services.activities import (
     Activity,
     change_activity_status,
@@ -16,14 +15,12 @@ from services.activities import (
     get_open_activities,
     set_activity_message,
 )
-
 from services.close_results import (
     confirm_close_result,
     dispute_close_result,
     init_close_results,
     propose_close_result,
 )
-
 from services.close_teams import (
     TEAM_MODE_CAPTAINS,
     TEAM_MODE_RANDOM,
@@ -35,23 +32,25 @@ from services.close_teams import (
     prepare_captain_draft,
     set_close_captains,
 )
-
 from views.activity.activity_view import (
     ActivityView,
     build_activity_embed,
 )
 
 
+CLOSE_SIZES = [
+    app_commands.Choice(name="2×2 · 4 игрока", value=4),
+    app_commands.Choice(name="3×3 · 6 игроков", value=6),
+    app_commands.Choice(name="4×4 · 8 игроков", value=8),
+    app_commands.Choice(name="5×5 · 10 игроков", value=10),
+]
+
+
 class Closes(commands.Cog):
-    def __init__(
-        self,
-        bot: commands.Bot,
-    ):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    async def cog_load(
-        self,
-    ) -> None:
+    async def cog_load(self) -> None:
         await init_close_teams()
         await init_close_results()
 
@@ -103,7 +102,7 @@ class Closes(commands.Cog):
 
     @app_commands.command(
         name="создать-клоз",
-        description="Создать закрытую игровую активность",
+        description="Создать командный CLOSE",
     )
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(
@@ -119,7 +118,8 @@ class Closes(commands.Cog):
                 name="Выбор капитанами",
                 value=TEAM_MODE_CAPTAINS,
             ),
-        ]
+        ],
+        team_size=CLOSE_SIZES,
     )
     async def create_close(
         self,
@@ -127,16 +127,14 @@ class Closes(commands.Cog):
         title: str,
         description: str,
         team_mode: app_commands.Choice[str],
-        max_participants: app_commands.Range[
-            int,
-            2,
-            20,
-        ] = 10,
+        team_size: app_commands.Choice[int],
     ):
         if interaction.guild is None:
             return
 
         await interaction.response.defer()
+
+        activity = None
 
         try:
             activity = await create_activity(
@@ -145,7 +143,7 @@ class Closes(commands.Cog):
                 title=title,
                 description=description,
                 host_id=interaction.user.id,
-                max_participants=max_participants,
+                max_participants=team_size.value,
             )
 
             await create_close_settings(
@@ -156,6 +154,25 @@ class Closes(commands.Cog):
         except ValueError as error:
             await interaction.followup.send(
                 str(error),
+                ephemeral=True,
+            )
+            return
+
+        except Exception as error:
+            if activity is not None:
+                try:
+                    await change_activity_status(
+                        guild_id=interaction.guild.id,
+                        activity_id=activity.activity_id,
+                        new_status="cancelled",
+                    )
+                except Exception:
+                    pass
+
+            print(f"[CLOSE CREATE SETTINGS] {error}")
+
+            await interaction.followup.send(
+                "Не удалось создать CLOSE.",
                 ephemeral=True,
             )
             return
@@ -192,15 +209,11 @@ class Closes(commands.Cog):
 
             if message is not None:
                 try:
-                    await message.edit(
-                        view=None
-                    )
+                    await message.edit(view=None)
                 except discord.HTTPException:
                     pass
 
-            print(
-                f"[CLOSE CREATE] {error}"
-            )
+            print(f"[CLOSE CREATE] {error}")
 
             await interaction.followup.send(
                 "Не удалось опубликовать CLOSE. Он отменён.",
@@ -225,9 +238,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         activity = await get_activity_for_command(
             interaction=interaction,
@@ -287,9 +298,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         activity = await get_activity_for_command(
             interaction=interaction,
@@ -304,23 +313,20 @@ class Closes(commands.Cog):
             activity_id=activity_id
         )
 
-        if len(participants) < 2:
+        required = activity.max_participants or 0
+
+        if len(participants) != required:
             await interaction.followup.send(
-                "Для запуска CLOSE нужно минимум 2 участника.",
+                (
+                    f"Для запуска этого CLOSE нужно ровно "
+                    f"**{required}** участников.\n"
+                    f"Сейчас записано: **{len(participants)}**."
+                ),
                 ephemeral=True,
             )
             return
 
-        if len(participants) % 2 != 0:
-            await interaction.followup.send(
-                "Для двух равных команд нужно чётное число участников.",
-                ephemeral=True,
-            )
-            return
-
-        settings = await get_close_settings(
-            activity_id
-        )
+        settings = await get_close_settings(activity_id)
 
         if settings is None:
             await interaction.followup.send(
@@ -333,7 +339,6 @@ class Closes(commands.Cog):
             team_result = await assign_random_teams(
                 activity_id
             )
-
         else:
             team_result = await prepare_captain_draft(
                 activity_id
@@ -349,10 +354,7 @@ class Closes(commands.Cog):
                 )
                 return
 
-        if team_result not in {
-            "assigned",
-            "ready",
-        }:
+        if team_result not in {"assigned", "ready"}:
             await interaction.followup.send(
                 "Не удалось сформировать команды CLOSE.",
                 ephemeral=True,
@@ -365,19 +367,14 @@ class Closes(commands.Cog):
             new_status="running",
         )
 
-        if (
-            status != "changed"
-            or activity is None
-        ):
+        if status != "changed" or activity is None:
             await interaction.followup.send(
                 "Этот CLOSE уже нельзя запустить.",
                 ephemeral=True,
             )
             return
 
-        await self.refresh_close_message(
-            activity
-        )
+        await self.refresh_close_message(activity)
 
         if settings.team_mode == TEAM_MODE_RANDOM:
             text = (
@@ -428,9 +425,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         activity = await get_activity_for_command(
             interaction=interaction,
@@ -455,10 +450,7 @@ class Closes(commands.Cog):
             "not_found": "Капитанский CLOSE не найден.",
         }
 
-        if result not in {
-            "picked",
-            "finished",
-        }:
+        if result not in {"picked", "finished"}:
             await interaction.followup.send(
                 messages.get(
                     result,
@@ -475,9 +467,7 @@ class Closes(commands.Cog):
         )
 
         if updated is not None:
-            await self.refresh_close_message(
-                updated
-            )
+            await self.refresh_close_message(updated)
 
         if result == "finished":
             text = (
@@ -490,9 +480,7 @@ class Closes(commands.Cog):
             )
 
             if updated_settings is None:
-                text = (
-                    f"{player.mention} добавлен в команду."
-                )
+                text = f"{player.mention} добавлен в команду."
             else:
                 next_captain_id = (
                     updated_settings.captain_a_id
@@ -539,9 +527,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         activity = await get_activity_for_command(
             interaction=interaction,
@@ -576,11 +562,7 @@ class Closes(commands.Cog):
             )
             return
 
-        losing_team = (
-            "B"
-            if winner_team.value == "a"
-            else "A"
-        )
+        losing_team = "B" if winner_team.value == "a" else "A"
 
         await interaction.followup.send(
             (
@@ -605,9 +587,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         status, activity = await confirm_close_result(
             guild_id=interaction.guild.id,
@@ -625,10 +605,7 @@ class Closes(commands.Cog):
             "not_running": "Этот CLOSE уже не идёт.",
         }
 
-        if (
-            status != "confirmed"
-            or activity is None
-        ):
+        if status != "confirmed" or activity is None:
             await interaction.followup.send(
                 messages.get(
                     status,
@@ -638,9 +615,7 @@ class Closes(commands.Cog):
             )
             return
 
-        await self.refresh_close_message(
-            activity
-        )
+        await self.refresh_close_message(activity)
 
         await interaction.followup.send(
             (
@@ -663,9 +638,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         result = await dispute_close_result(
             guild_id=interaction.guild.id,
@@ -716,9 +689,7 @@ class Closes(commands.Cog):
         if interaction.guild is None:
             return
 
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         activity = await get_activity_for_command(
             interaction=interaction,
@@ -729,10 +700,7 @@ class Closes(commands.Cog):
         if activity is None:
             return
 
-        if activity.status not in {
-            "open",
-            "running",
-        }:
+        if activity.status not in {"open", "running"}:
             await interaction.followup.send(
                 "Этот CLOSE уже закрыт.",
                 ephemeral=True,
@@ -745,19 +713,14 @@ class Closes(commands.Cog):
             new_status="cancelled",
         )
 
-        if (
-            status != "changed"
-            or activity is None
-        ):
+        if status != "changed" or activity is None:
             await interaction.followup.send(
                 "Не удалось отменить CLOSE.",
                 ephemeral=True,
             )
             return
 
-        await self.refresh_close_message(
-            activity
-        )
+        await self.refresh_close_message(activity)
 
         await interaction.followup.send(
             f"CLOSE **#{activity_id}** отменён.",
@@ -765,9 +728,5 @@ class Closes(commands.Cog):
         )
 
 
-async def setup(
-    bot: commands.Bot,
-):
-    await bot.add_cog(
-        Closes(bot)
-    )
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Closes(bot))
