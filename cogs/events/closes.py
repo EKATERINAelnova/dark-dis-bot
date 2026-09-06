@@ -7,6 +7,12 @@ from cogs.events.common import (
     fetch_activity_message,
     get_activity_for_command,
 )
+from cogs.events.reward_helpers import process_xp_rewards
+from config.economy import (
+    CLOSE_PARTICIPATION_XP,
+    CLOSE_WIN_BONUS_CURRENCY,
+    CLOSE_WIN_BONUS_XP,
+)
 from services.activities import (
     Activity,
     change_activity_status,
@@ -21,6 +27,7 @@ from services.close_results import (
     init_close_results,
     propose_close_result,
 )
+from services.close_rewards import reward_close_automatically
 from services.close_teams import (
     TEAM_MODE_CAPTAINS,
     TEAM_MODE_RANDOM,
@@ -541,13 +548,44 @@ class Closes(commands.Cog):
             )
             return
 
+        reward_results = []
+        reward_error = None
+
+        try:
+            reward_results = await reward_close_automatically(
+                guild_id=interaction.guild.id,
+                activity_id=activity_id,
+                actor_id=interaction.user.id,
+            )
+
+            await process_xp_rewards(
+                guild=interaction.guild,
+                results=reward_results,
+            )
+
+        except Exception as error:
+            reward_error = error
+            print(f"[CLOSE AUTO REWARD] {error}")
+
         await self.refresh_close_message(activity)
 
+        text = (
+            f"Результат CLOSE **#{activity_id}** подтверждён.\n"
+            "Матч записан в общий прогресс."
+        )
+
+        if reward_error is not None:
+            text += "\nНаграду не удалось начислить, проверь логи бота."
+        else:
+            text += (
+                f"\nУчастие: **+{CLOSE_PARTICIPATION_XP} XP**."
+                f"\nПобедители дополнительно: "
+                f"**+{CLOSE_WIN_BONUS_XP} XP** и "
+                f"**+{CLOSE_WIN_BONUS_CURRENCY} 🍎**."
+            )
+
         await interaction.followup.send(
-            (
-                f"Результат CLOSE **#{activity_id}** подтверждён.\n"
-                "Матч записан в общий прогресс."
-            ),
+            text,
             ephemeral=True,
         )
 
