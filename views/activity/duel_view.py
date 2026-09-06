@@ -2,10 +2,23 @@ import asyncio
 
 import discord
 
+from cogs.events.reward_helpers import (
+    format_reward_bundle,
+    process_xp_rewards,
+)
+
+from config.economy import (
+    DUEL_WIN_REWARD,
+)
+
 from services.activities import (
     Activity,
     change_activity_status,
     get_activity,
+)
+
+from services.automatic_activity_rewards import (
+    reward_duel_winner_automatically,
 )
 
 from services.duels import (
@@ -47,10 +60,15 @@ def build_duel_embed(
     ):
         status = "RESULT PENDING"
 
+    reward_text = format_reward_bundle(
+        DUEL_WIN_REWARD
+    )
+
     if activity.status == "open":
         description = (
             f"<@{challenger_id}> бросает вызов "
             f"<@{opponent_id}>.\n\n"
+            f"Награда победителю: {reward_text}.\n"
             f"Ответ за соперником."
         )
 
@@ -71,7 +89,8 @@ def build_duel_embed(
         description = (
             f"<@{challenger_id}> ⚔ "
             f"<@{opponent_id}>\n\n"
-            f"Дуэль началась."
+            f"Дуэль началась.\n"
+            f"Награда победителю: {reward_text}."
         )
 
     elif activity.status == "finished":
@@ -82,8 +101,8 @@ def build_duel_embed(
             description = (
                 f"<@{challenger_id}> ⚔ "
                 f"<@{opponent_id}>\n\n"
-                f"Победитель: "
-                f"<@{result.winner_id}>"
+                f"Победитель: <@{result.winner_id}>\n"
+                f"Награда: {reward_text}."
             )
         else:
             description = (
@@ -142,14 +161,11 @@ class DuelView(discord.ui.View):
         challenger_id: int,
         opponent_id: int,
     ):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
         self.activity_id = activity_id
         self.challenger_id = challenger_id
         self.opponent_id = opponent_id
-
         self.action_lock = asyncio.Lock()
 
     async def get_duel(
@@ -337,10 +353,7 @@ class DuelView(discord.ui.View):
 
             if activity.status != "open":
                 await interaction.response.send_message(
-                    (
-                        "Начавшуюся дуэль "
-                        "уже нельзя отозвать."
-                    ),
+                    "Начавшуюся дуэль уже нельзя отозвать.",
                     ephemeral=True,
                 )
                 return
@@ -385,16 +398,13 @@ class DuelResultView(discord.ui.View):
         winner_id: int,
         submitted_by: int,
     ):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
         self.activity_id = activity_id
         self.challenger_id = challenger_id
         self.opponent_id = opponent_id
         self.winner_id = winner_id
         self.submitted_by = submitted_by
-
         self.action_lock = asyncio.Lock()
 
     async def check_resolver(
@@ -403,10 +413,7 @@ class DuelResultView(discord.ui.View):
     ) -> bool:
         if interaction.user.id == self.submitted_by:
             await interaction.response.send_message(
-                (
-                    "Подтвердить собственный отчёт "
-                    "нельзя."
-                ),
+                "Подтвердить собственный отчёт нельзя.",
                 ephemeral=True,
             )
             return False
@@ -475,10 +482,7 @@ class DuelResultView(discord.ui.View):
                 or activity is None
             ):
                 await interaction.response.send_message(
-                    (
-                        "Этот результат уже нельзя "
-                        "подтвердить."
-                    ),
+                    "Этот результат уже нельзя подтвердить.",
                     ephemeral=True,
                 )
                 return
@@ -486,6 +490,30 @@ class DuelResultView(discord.ui.View):
             result = await get_duel_result(
                 self.activity_id
             )
+
+            reward_error = None
+
+            if result is not None:
+                try:
+                    reward_results = (
+                        await reward_duel_winner_automatically(
+                            guild_id=interaction.guild.id,
+                            activity_id=self.activity_id,
+                            winner_id=result.winner_id,
+                            actor_id=interaction.user.id,
+                        )
+                    )
+
+                    await process_xp_rewards(
+                        guild=interaction.guild,
+                        results=reward_results,
+                    )
+
+                except Exception as error:
+                    reward_error = error
+                    print(
+                        f"[DUEL AUTO REWARD] {error}"
+                    )
 
             await interaction.response.edit_message(
                 content=None,
@@ -497,6 +525,15 @@ class DuelResultView(discord.ui.View):
                 ),
                 view=None,
             )
+
+            if reward_error is not None:
+                await interaction.followup.send(
+                    (
+                        "Результат подтверждён, но автоматическая "
+                        "награда не выдалась. Проверь логи бота."
+                    ),
+                    ephemeral=True,
+                )
 
             self.stop()
 
