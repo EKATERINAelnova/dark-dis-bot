@@ -33,32 +33,44 @@ async def reward_event_automatically(
     activity: Activity,
     actor_id: int | None = None,
 ) -> list[ActivityRewardResult]:
-    rewards = get_event_rewards(
-        activity.reward_preset
-    )
-
     results = []
 
-    for reward_kind, amount in rewards.items():
-        if amount <= 0:
-            continue
+    try:
+        rewards = get_event_rewards(
+            activity.reward_preset
+        )
 
-        reward_results = (
-            await reward_activity_participants(
+        for reward_kind, amount in rewards.items():
+            if amount <= 0:
+                continue
+
+            reward_results = (
+                await reward_activity_participants(
+                    guild_id=activity.guild_id,
+                    activity_id=activity.activity_id,
+                    reward_kind=reward_kind,
+                    amount=amount,
+                    actor_id=actor_id,
+                    reward_prefix="auto:event",
+                )
+            )
+
+            results.extend(
+                reward_results
+            )
+
+        return results
+
+    finally:
+        try:
+            await check_activity_participant_achievements(
                 guild_id=activity.guild_id,
                 activity_id=activity.activity_id,
-                reward_kind=reward_kind,
-                amount=amount,
-                actor_id=actor_id,
-                reward_prefix="auto:event",
             )
-        )
-
-        results.extend(
-            reward_results
-        )
-
-    return results
+        except Exception as error:
+            print(
+                f"[EVENT ACHIEVEMENTS] {error}"
+            )
 
 
 async def check_duel_reward_allowed(
@@ -103,14 +115,21 @@ async def check_duel_reward_allowed(
 
         cursor = await db.execute(
             """
-            SELECT COUNT(DISTINCT activity_id)
-            FROM activity_payouts
-            WHERE user_id = ?
-              AND reward_key LIKE 'auto:winner:%'
-              AND granted_at >= ?
+            SELECT COUNT(DISTINCT p.activity_id)
+            FROM activity_payouts AS p
+            JOIN activities AS a
+              ON a.activity_id = p.activity_id
+            WHERE a.guild_id = ?
+              AND a.type = 'duel'
+              AND p.user_id = ?
+              AND p.activity_id != ?
+              AND p.reward_key LIKE 'auto:winner:%'
+              AND p.granted_at >= ?
             """,
             (
+                guild_id,
                 winner_id,
+                activity_id,
                 now - DUEL_REWARD_WINDOW_SECONDS,
             ),
         )
@@ -118,7 +137,7 @@ async def check_duel_reward_allowed(
         row = await cursor.fetchone()
         await cursor.close()
 
-        if int(row[0]) >= DUEL_REWARD_DAILY_LIMIT:
+        if int(row[0] or 0) >= DUEL_REWARD_DAILY_LIMIT:
             return "daily_limit"
 
         cursor = await db.execute(
@@ -157,12 +176,14 @@ async def check_duel_reward_allowed(
               ON a.activity_id = p.activity_id
             WHERE a.guild_id = ?
               AND a.type = 'duel'
+              AND p.activity_id != ?
               AND p.reward_key LIKE 'auto:winner:%'
             """,
             (
                 winner_id,
                 opponent_id,
                 guild_id,
+                activity_id,
             ),
         )
 
@@ -192,15 +213,20 @@ async def reward_duel_winner_automatically(
     winner_id: int,
     actor_id: int | None = None,
 ) -> list[ActivityRewardResult]:
+    try:
+        await check_activity_participant_achievements(
+            guild_id=guild_id,
+            activity_id=activity_id,
+        )
+    except Exception as error:
+        print(
+            f"[DUEL ACHIEVEMENTS] {error}"
+        )
+
     status = await check_duel_reward_allowed(
         guild_id=guild_id,
         activity_id=activity_id,
         winner_id=winner_id,
-    )
-
-    await check_activity_participant_achievements(
-        guild_id=guild_id,
-        activity_id=activity_id,
     )
 
     if status != "allowed":
