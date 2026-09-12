@@ -4,16 +4,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from config.economy import CURRENCY_SYMBOL
-from database.member_stats import get_member_stats
-from services.activity_progress import (
-    get_member_activity_progress,
-)
-from services.achievements import (
-    ACHIEVEMENTS,
-    check_achievements,
-    get_achievement_value,
-    get_metric_participations,
-    get_unlocked_achievement_keys,
+from services.achievement_progress import (
+    get_achievement_progress,
 )
 from utils.embeds import eden_embed
 
@@ -41,68 +33,46 @@ class Achievements(commands.Cog):
             ephemeral=True
         )
 
-        await check_achievements(
+        snapshot = await get_achievement_progress(
             guild_id=interaction.guild.id,
             user_id=interaction.user.id,
-        )
-
-        stats = await get_member_stats(
-            guild_id=interaction.guild.id,
-            user_id=interaction.user.id,
-        )
-
-        activity_progress = await get_member_activity_progress(
-            guild_id=interaction.guild.id,
-            user_id=interaction.user.id,
-        )
-
-        unlocked_keys = await get_unlocked_achievement_keys(
-            guild_id=interaction.guild.id,
-            user_id=interaction.user.id,
+            refresh=True,
         )
 
         lines = []
 
-        for achievement in ACHIEVEMENTS:
-            unlocked = achievement.key in unlocked_keys
+        for item in snapshot.items:
+            achievement = item.achievement
 
-            value = get_achievement_value(
-                achievement,
-                stats,
-                activity_progress,
-            )
-
-            if unlocked:
+            if item.unlocked:
                 icon = "◆"
-                progress = "Открыто"
+                progress_text = "Открыто"
             else:
                 icon = "◇"
 
                 if achievement.metric == "voice":
-                    progress = (
-                        f"{value // 60} / "
+                    progress_text = (
+                        f"{item.value // 60} / "
                         f"{achievement.target // 60} мин."
                     )
 
                 elif achievement.minimum_participations > 0:
-                    played = get_metric_participations(
-                        achievement,
-                        activity_progress,
-                    )
-
-                    if played < achievement.minimum_participations:
-                        progress = (
-                            f"{played} / "
+                    if (
+                        item.participations
+                        < achievement.minimum_participations
+                    ):
+                        progress_text = (
+                            f"{item.participations} / "
                             f"{achievement.minimum_participations} матчей"
                         )
                     else:
-                        progress = (
-                            f"{value}% / {achievement.target}%"
+                        progress_text = (
+                            f"{item.value}% / {achievement.target}%"
                         )
 
                 else:
-                    progress = (
-                        f"{min(value, achievement.target)} "
+                    progress_text = (
+                        f"{min(item.value, achievement.target)} "
                         f"/ {achievement.target}"
                     )
 
@@ -121,21 +91,34 @@ class Achievements(commands.Cog):
                 (
                     f"{icon} **{achievement.name}**\n"
                     f"{achievement.description}\n"
-                    f"`{progress}` · "
+                    f"`{progress_text}` · "
                     f"Награда: **{reward_text}**"
                 )
             )
 
+        intro = ""
+        if snapshot.unlocked_now:
+            names = ", ".join(
+                achievement.name
+                for achievement in snapshot.unlocked_now
+            )
+            intro = (
+                f"Сад открыл новые достижения: **{names}**.\n\n"
+            )
+
         embed = eden_embed(
             title="✦ ACHIEVEMENTS",
-            description="\n\n".join(lines),
+            description=(
+                intro
+                + "\n\n".join(lines)
+            ),
         )
 
         embed.set_footer(
             text=(
                 f"LOST EDEN · RIMAY  •  "
-                f"{len(unlocked_keys)}/"
-                f"{len(ACHIEVEMENTS)} открыто"
+                f"{snapshot.unlocked_count}/"
+                f"{snapshot.total_count} открыто"
             )
         )
 
