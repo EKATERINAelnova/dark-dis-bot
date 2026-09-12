@@ -1,12 +1,9 @@
-import discord
-
 from config.economy import (
     CURRENCY_SYMBOL,
     EVENT_REWARD_PRESET_NAMES,
 )
-from services.achievements import check_achievements
 from services.automatic_activity_rewards import get_event_rewards
-from services.level_roles import sync_level_role
+from services.reward_processing import process_xp_rewards
 
 
 def format_reward(
@@ -60,56 +57,3 @@ def format_event_reward_preset(
         f"{name}\n"
         f"{format_reward_bundle(rewards)}"
     )
-
-
-async def process_xp_rewards(
-    guild: discord.Guild,
-    results,
-) -> None:
-    user_ids = {
-        result.user_id
-        for result in results
-    }
-
-    for user_id in user_ids:
-        await check_achievements(
-            guild_id=guild.id,
-            user_id=user_id,
-        )
-
-    xp_results = [
-        result
-        for result in results
-        if (
-            result.status == "granted"
-            and result.reward_kind == "xp"
-        )
-    ]
-
-    for result in xp_results:
-        if (
-            result.cases_gained <= 0
-            or result.new_level is None
-        ):
-            continue
-
-        member = guild.get_member(
-            result.user_id
-        )
-
-        if member is None:
-            continue
-
-        try:
-            await sync_level_role(
-                member=member,
-                level=result.new_level,
-            )
-
-        except (
-            discord.HTTPException,
-            RuntimeError,
-        ) as error:
-            print(
-                f"[LEVEL ROLE] {error}"
-            )
