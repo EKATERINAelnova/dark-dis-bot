@@ -19,10 +19,10 @@ SECONDARY_TEXT_COLOR = "#C8AE91"
 # =========================================================
 # AVATAR
 # =========================================================
-# Центр внутренней области круглой рамки шаблона.
-# X/Y вычисляются только от центра, поэтому аватар не смещается.
+# В финальном шаблоне внутренний круг немного меньше прежнего.
+# Размер уменьшаем, центр оставляем в центре рамки.
 AVATAR_CENTER = (292, 303)
-AVATAR_SIZE = 338
+AVATAR_SIZE = 320
 AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
 AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 
@@ -30,53 +30,48 @@ AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 # =========================================================
 # IDENTITY
 # =========================================================
-# Значения стоят в одной строке с подписями шаблона,
-# но начинаются после DISPLAY NAME / @USERNAME.
-DISPLAY_NAME_POS = (775, 204)
-DISPLAY_NAME_MAX_WIDTH = 315
+# Координаты соответствуют финальному макету:
+# значение начинается сразу после подписи слева.
+DISPLAY_NAME_POS = (690, 204)
+DISPLAY_NAME_MAX_WIDTH = 390
 
-USERNAME_POS = (720, 285)
-USERNAME_MAX_WIDTH = 365
+USERNAME_POS = (716, 285)
+USERNAME_MAX_WIDTH = 390
 
 
 # =========================================================
 # STATUS VALUES
 # =========================================================
-# Подписи занимают верхнюю часть секций, декоративная линия идёт
-# примерно на y=533. Значения помещаем ниже неё, в свободную полосу.
-VERIFICATION_CENTER = (635, 547)
+# Значения находятся между названием блока и нижней декоративной линией.
+VERIFICATION_CENTER = (654, 529)
 VERIFICATION_MAX_WIDTH = 135
 
-MILESTONE_CENTER = (829, 547)
+MILESTONE_CENTER = (829, 529)
 MILESTONE_MAX_WIDTH = 150
 
-CASES_CENTER = (1025, 547)
+CASES_CENTER = (1025, 529)
 CASES_MAX_WIDTH = 90
 
 
 # =========================================================
 # PROGRESS VALUES
 # =========================================================
-# В центре кругов уже нарисована звезда. Числа ставим в верхнюю
-# половину окружности, чтобы не накладывать текст на декор.
-LEVEL_CENTER = (1347, 242)
-RANK_CENTER = (1686, 242)
+# Центры кругов LEVEL / RANK в финальном шаблоне.
+LEVEL_CENTER = (1385, 247)
+RANK_CENTER = (1725, 247)
 
-# Заголовки TOTAL XP / XP TO NEXT LEVEL находятся над линией со звездой.
-# Значения размещаем ниже этой линии, где есть отдельная свободная полоса.
-TOTAL_XP_CENTER = (1347, 450)
-XP_NEXT_CENTER = (1686, 450)
+# Центры значений нижнего ряда правого блока.
+TOTAL_XP_CENTER = (1385, 448)
+XP_NEXT_CENTER = (1725, 448)
 
-BALANCE_CENTER = (1592, 511)
+BALANCE_CENTER = (1592, 525)
 
 
 # =========================================================
 # ACTIVITY VALUES
 # =========================================================
-# VOICE TIME / MESSAGES уже напечатаны слева в своих половинах.
-# Значения продолжают ту же строку и используют одинаковую высоту.
-VOICE_CENTER = (760, 635)
-MESSAGES_CENTER = (1545, 635)
+VOICE_CENTER = (755, 635)
+MESSAGES_CENTER = (1520, 635)
 
 
 @dataclass(frozen=True)
@@ -298,7 +293,7 @@ def draw_identity(
         DISPLAY_NAME_POS,
         user.display_name,
         max_width=DISPLAY_NAME_MAX_WIDTH,
-        start_size=25,
+        start_size=22,
         min_size=15,
         font_path=FONT_PATH,
     )
@@ -308,7 +303,7 @@ def draw_identity(
         USERNAME_POS,
         username_text(user),
         max_width=USERNAME_MAX_WIDTH,
-        start_size=19,
+        start_size=21,
         min_size=13,
         font_path=FONT_PATH2,
         color=SECONDARY_TEXT_COLOR,
@@ -326,7 +321,7 @@ def draw_statuses(
             data.verification_status
         ),
         max_width=VERIFICATION_MAX_WIDTH,
-        start_size=11,
+        start_size=12,
         min_size=8,
         font_path=FONT_PATH2,
     )
@@ -336,7 +331,7 @@ def draw_statuses(
         MILESTONE_CENTER,
         data.milestone_name or "NOT OPENED",
         max_width=MILESTONE_MAX_WIDTH,
-        start_size=11,
+        start_size=12,
         min_size=8,
         font_path=FONT_PATH2,
     )
