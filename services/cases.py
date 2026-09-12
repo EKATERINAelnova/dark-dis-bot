@@ -7,15 +7,9 @@ from config.economy import (
     CURRENCY_SYMBOL,
     REASON_CASE,
 )
-
 from database.connection import get_db
+from services.progression import calculate_progression
 
-from utils.leveling import level_from_xp
-
-
-# =========================================================
-# REWARD
-# =========================================================
 
 @dataclass(frozen=True)
 class CaseReward:
@@ -26,10 +20,6 @@ class CaseReward:
     rarity: str
 
 
-# =========================================================
-# REWARDS
-# =========================================================
-
 CASE_REWARDS = [
     CaseReward(
         kind="currency",
@@ -38,7 +28,6 @@ CASE_REWARDS = [
         title=f"15 {CURRENCY_SYMBOL}",
         rarity="COMMON",
     ),
-
     CaseReward(
         kind="currency",
         amount=35,
@@ -46,7 +35,6 @@ CASE_REWARDS = [
         title=f"35 {CURRENCY_SYMBOL}",
         rarity="UNCOMMON",
     ),
-
     CaseReward(
         kind="xp",
         amount=75,
@@ -54,7 +42,6 @@ CASE_REWARDS = [
         title="75 XP",
         rarity="RARE",
     ),
-
     CaseReward(
         kind="currency",
         amount=100,
@@ -62,7 +49,6 @@ CASE_REWARDS = [
         title=f"100 {CURRENCY_SYMBOL}",
         rarity="RARE",
     ),
-
     CaseReward(
         kind="xp",
         amount=150,
@@ -76,27 +62,15 @@ CASE_REWARDS = [
 randomizer = secrets.SystemRandom()
 
 
-# =========================================================
-# RESULT
-# =========================================================
-
 @dataclass
 class CaseOpenResult:
     reward: CaseReward
-
     cases_left: int
-
     new_xp: int
     new_level: int
-
     new_balance: int
-
     bonus_cases: int = 0
 
-
-# =========================================================
-# RANDOM REWARD
-# =========================================================
 
 def roll_case_reward() -> CaseReward:
     return randomizer.choices(
@@ -109,24 +83,13 @@ def roll_case_reward() -> CaseReward:
     )[0]
 
 
-# =========================================================
-# OPEN CASE
-# =========================================================
-
 async def open_eden_case(
     guild_id: int,
     user_id: int,
 ) -> CaseOpenResult | None:
-
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
-
-            # =============================================
-            # MEMBER
-            # =============================================
+            await db.execute("BEGIN IMMEDIATE")
 
             await db.execute(
                 """
@@ -170,30 +133,18 @@ async def open_eden_case(
             old_xp = int(row[1])
             old_balance = int(row[2])
 
-            # =============================================
-            # NO CASES
-            # =============================================
-
             if eden_cases <= 0:
                 await db.rollback()
-
                 return None
 
-            # Только теперь крутим награду.
             reward = roll_case_reward()
 
-            cases_left = (
-                eden_cases - 1
-            )
-
-            new_xp = old_xp
+            cases_left = eden_cases - 1
             new_balance = old_balance
-
-            bonus_cases = 0
-
-            # =============================================
-            # CURRENCY
-            # =============================================
+            progression = calculate_progression(
+                old_xp=old_xp,
+                xp_gain=0,
+            )
 
             if reward.kind == "currency":
                 new_balance = (
@@ -225,42 +176,18 @@ async def open_eden_case(
                     ),
                 )
 
-            # =============================================
-            # XP
-            # =============================================
-
             elif reward.kind == "xp":
-                old_level = level_from_xp(
-                    old_xp
+                progression = calculate_progression(
+                    old_xp=old_xp,
+                    xp_gain=reward.amount,
                 )
 
-                new_xp = (
-                    old_xp
-                    + reward.amount
-                )
-
-                new_level = level_from_xp(
-                    new_xp
-                )
-
-                bonus_cases = max(
-                    0,
-                    new_level - old_level,
-                )
-
-                cases_left += (
-                    bonus_cases
-                )
+                cases_left += progression.cases_gained
 
             else:
                 raise RuntimeError(
-                    f"Неизвестный тип награды: "
-                    f"{reward.kind}"
+                    f"Неизвестный тип награды: {reward.kind}"
                 )
-
-            # =============================================
-            # SAVE
-            # =============================================
 
             await db.execute(
                 """
@@ -274,7 +201,7 @@ async def open_eden_case(
                 """,
                 (
                     cases_left,
-                    new_xp,
+                    progression.new_xp,
                     new_balance,
                     guild_id,
                     user_id,
@@ -285,18 +212,11 @@ async def open_eden_case(
 
             return CaseOpenResult(
                 reward=reward,
-
                 cases_left=cases_left,
-
-                new_xp=new_xp,
-
-                new_level=level_from_xp(
-                    new_xp
-                ),
-
+                new_xp=progression.new_xp,
+                new_level=progression.new_level,
                 new_balance=new_balance,
-
-                bonus_cases=bonus_cases,
+                bonus_cases=progression.cases_gained,
             )
 
         except Exception:
