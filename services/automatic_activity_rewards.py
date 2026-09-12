@@ -6,27 +6,56 @@ from config.economy import (
     DUEL_REWARD_DAILY_LIMIT,
     DUEL_REWARD_WINDOW_SECONDS,
     DUEL_WIN_REWARD,
+    EVENT_REWARD_PRESETS,
 )
-
-from cogs.events.reward_helpers import (
-    get_event_rewards,
-)
-
 from database.connection import get_db
-
 from services.achievements import (
     check_activity_participant_achievements,
 )
-
-from services.activities import (
-    Activity,
-)
-
+from services.activities import Activity
 from services.activity_rewards import (
     ActivityRewardResult,
     grant_activity_reward,
     reward_activity_participants,
 )
+
+
+def get_event_rewards(
+    reward_preset: str | None,
+) -> dict[str, int]:
+    """
+    Преобразует ключ пресета EVENT в набор наград.
+
+    Логика пресетов находится в service-слое, чтобы Discord Cogs
+    только отображали данные и не были зависимостью бизнес-логики.
+    """
+
+    key = reward_preset or "standard"
+
+    if key.startswith("custom:"):
+        try:
+            _, currency, xp, cases = key.split(":")
+
+            return {
+                "currency": int(currency),
+                "xp": int(xp),
+                "case": int(cases),
+            }
+        except (ValueError, TypeError):
+            return {
+                "currency": 0,
+                "xp": 0,
+                "case": 0,
+            }
+
+    return EVENT_REWARD_PRESETS.get(
+        key,
+        {
+            "currency": 0,
+            "xp": 0,
+            "case": 0,
+        },
+    )
 
 
 async def reward_event_automatically(
