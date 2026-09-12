@@ -120,16 +120,19 @@ async def check_duel_reward_allowed(
     if saved_status is not None:
         return saved_status
 
-    now = int(time.time())
-
     async with get_db() as db:
         cursor = await db.execute(
             """
-            SELECT starts_at
-            FROM activities
-            WHERE guild_id = ?
-              AND activity_id = ?
-              AND type = 'duel'
+            SELECT
+                a.starts_at,
+                r.confirmed_at
+            FROM activities AS a
+            JOIN activity_results AS r
+              ON r.activity_id = a.activity_id
+            WHERE a.guild_id = ?
+              AND a.activity_id = ?
+              AND a.type = 'duel'
+              AND r.status = 'confirmed'
             """,
             (
                 guild_id,
@@ -149,9 +152,16 @@ async def check_duel_reward_allowed(
             else None
         )
 
+        reference_time = (
+            int(row[1])
+            if row[1] is not None
+            else int(time.time())
+        )
+
         if (
             starts_at is None
-            or now - starts_at < DUEL_MIN_DURATION_SECONDS
+            or reference_time - starts_at
+            < DUEL_MIN_DURATION_SECONDS
         ):
             return await save_reward_decision(
                 activity_id=activity_id,
@@ -172,12 +182,14 @@ async def check_duel_reward_allowed(
               AND p.activity_id != ?
               AND p.reward_key LIKE 'auto:winner:%'
               AND p.granted_at >= ?
+              AND p.granted_at <= ?
             """,
             (
                 guild_id,
                 winner_id,
                 activity_id,
-                now - DUEL_REWARD_WINDOW_SECONDS,
+                reference_time - DUEL_REWARD_WINDOW_SECONDS,
+                reference_time,
             ),
         )
 
@@ -230,12 +242,14 @@ async def check_duel_reward_allowed(
               AND a.type = 'duel'
               AND p.activity_id != ?
               AND p.reward_key LIKE 'auto:winner:%'
+              AND p.granted_at <= ?
             """,
             (
                 winner_id,
                 opponent_id,
                 guild_id,
                 activity_id,
+                reference_time,
             ),
         )
 
@@ -251,7 +265,7 @@ async def check_duel_reward_allowed(
 
         if (
             last_pair_reward is not None
-            and now - last_pair_reward
+            and reference_time - last_pair_reward
             < DUEL_PAIR_REWARD_COOLDOWN_SECONDS
         ):
             return await save_reward_decision(
