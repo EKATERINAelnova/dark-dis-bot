@@ -38,15 +38,3 @@ async def get_db():
 
     finally:
         await db.close()
-
-
-async def init_db() -> None:
-    """
-    Совместимая точка входа для инициализации базы.
-
-    Сама схема находится в database.schema.
-    """
-
-    from database.schema import init_db as init_schema
-
-    await init_schema()
