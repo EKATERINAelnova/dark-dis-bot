@@ -137,7 +137,7 @@ class Profile(commands.Cog):
         )
 
         embed.add_field(
-            name="EVENTS",
+            name="ИВЕНТЫ",
             value=(
                 f"Участий: **{activities.events.participations}**"
             ),
@@ -145,11 +145,11 @@ class Profile(commands.Cog):
         )
 
         embed.add_field(
-            name="DUEL / CLOSE",
+            name="ДУЭЛИ / КЛОЗЫ",
             value=(
-                f"DUEL: **{activities.duels.wins}/{activities.duels.participations}** "
+                f"Дуэли: **{activities.duels.wins}/{activities.duels.participations}** "
                 f"({activities.duels.winrate}%)\n"
-                f"CLOSE: **{activities.closes.wins}/{activities.closes.participations}** "
+                f"Клозы: **{activities.closes.wins}/{activities.closes.participations}** "
                 f"({activities.closes.winrate}%)"
             ),
             inline=False,
