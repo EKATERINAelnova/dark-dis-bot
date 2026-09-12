@@ -116,6 +116,7 @@ EXTENSIONS = [
     "cogs.events.duels",
     "cogs.events.closes",
     "cogs.events.activity_lists",
+    "cogs.roles.milestones",
 ]
 
 
