@@ -80,6 +80,8 @@ class Profile(commands.Cog):
             else None
         )
 
+        activities = progress.activities
+
         card_data = ProfileCardData(
             level=progress.level,
             rank=progress.rank,
@@ -89,6 +91,10 @@ class Profile(commands.Cog):
             total_xp=progress.stats.xp,
             xp_to_next_level=progress.xp_to_next_level,
             eden_cases=progress.stats.eden_cases,
+            achievements_unlocked=progress.achievements_unlocked,
+            achievements_total=progress.achievements_total,
+            duels=activities.duels.participations,
+            closes=activities.closes.participations,
             verification_status=status,
             milestone_name=milestone_name,
         )
@@ -112,8 +118,6 @@ class Profile(commands.Cog):
             card,
             filename="profile.png",
         )
-
-        activities = progress.activities
 
         embed = eden_embed(
             title=f"✦ ПРОФИЛЬ · {user.display_name}",
