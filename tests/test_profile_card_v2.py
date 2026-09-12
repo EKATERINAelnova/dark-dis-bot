@@ -1,5 +1,6 @@
 from utils.profile_card_v2 import (
     ProfileCardData,
+    format_voice_time,
     get_profile_badges,
     verification_value,
 )
@@ -27,7 +28,7 @@ def test_verified_profile_values():
     values = get_profile_badges(data)
 
     assert values == [
-        ("VERIFIED", "verification"),
+        ("ПРОЙДЕНА", "verification"),
         ("Bloom", "milestone"),
         ("3", "cases"),
     ]
@@ -43,8 +44,8 @@ def test_pending_profile_without_milestone():
     values = get_profile_badges(data)
 
     assert values == [
-        ("PENDING", "verification"),
-        ("NOT OPENED", "milestone"),
+        ("ОЖИДАЕТ", "verification"),
+        ("НЕ ОТКРЫТА", "milestone"),
         ("0", "cases"),
     ]
 
@@ -52,10 +53,15 @@ def test_pending_profile_without_milestone():
 def test_unconfigured_verification_value():
     assert verification_value(
         "unconfigured"
-    ) == "NOT SET"
+    ) == "НЕ НАСТРОЕНА"
 
 
 def test_unknown_verification_status_is_pending():
     assert verification_value(
         "something_else"
-    ) == "PENDING"
+    ) == "ОЖИДАЕТ"
+
+
+def test_voice_time_is_localized():
+    assert format_voice_time(0) == "0 мин"
+    assert format_voice_time(3720) == "1 ч 02 мин"
