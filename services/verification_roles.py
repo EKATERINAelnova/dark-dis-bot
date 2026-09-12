@@ -16,12 +16,47 @@ def get_verified_role_id() -> int | None:
 
     raw_role_id = raw_role_id.strip()
 
+    if not raw_role_id:
+        return None
+
     if not raw_role_id.isdigit():
         raise RuntimeError(
             f"{VERIFIED_ROLE_ENV} должен содержать ID роли"
         )
 
-    return int(raw_role_id)
+    role_id = int(raw_role_id)
+
+    if role_id <= 0:
+        raise RuntimeError(
+            f"{VERIFIED_ROLE_ENV} должен содержать положительный ID роли"
+        )
+
+    return role_id
+
+
+def get_verified_role(
+    guild: discord.Guild,
+) -> discord.Role | None:
+    role_id = get_verified_role_id()
+
+    if role_id is None:
+        return None
+
+    return guild.get_role(role_id)
+
+
+def is_member_verified(
+    member: discord.Member,
+) -> bool:
+    role_id = get_verified_role_id()
+
+    if role_id is None:
+        return False
+
+    return any(
+        role.id == role_id
+        for role in member.roles
+    )
 
 
 async def set_verified_role(
@@ -31,8 +66,9 @@ async def set_verified_role(
     """
     Добавляет или снимает единственную роль верификации.
 
-    Логика самой верификации живёт отдельно. Этот сервис отвечает
-    только за синхронизацию Discord-роли после её результата.
+    Источник истины для состояния верификации - Discord-роль.
+    Повторный вызов безопасен: уже существующая роль не добавляется
+    повторно, отсутствующая роль не снимается повторно.
     """
 
     role_id = get_verified_role_id()
