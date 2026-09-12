@@ -6,6 +6,17 @@ from config.roles import LEVEL_ROLES
 def get_level_role_name(
     level: int,
 ) -> str | None:
+    milestone = get_current_level_role(level)
+
+    if milestone is None:
+        return None
+
+    return milestone[1]
+
+
+def get_current_level_role(
+    level: int,
+) -> tuple[int, str] | None:
     available_levels = [
         required_level
         for required_level in LEVEL_ROLES
@@ -15,13 +26,32 @@ def get_level_role_name(
     if not available_levels:
         return None
 
-    highest_level = max(
-        available_levels
+    milestone_level = max(available_levels)
+
+    return (
+        milestone_level,
+        LEVEL_ROLES[milestone_level],
     )
 
-    return LEVEL_ROLES[
-        highest_level
+
+def get_next_level_role(
+    level: int,
+) -> tuple[int, str] | None:
+    upcoming_levels = [
+        required_level
+        for required_level in LEVEL_ROLES
+        if required_level > level
     ]
+
+    if not upcoming_levels:
+        return None
+
+    milestone_level = min(upcoming_levels)
+
+    return (
+        milestone_level,
+        LEVEL_ROLES[milestone_level],
+    )
 
 
 async def sync_level_role(
@@ -33,15 +63,11 @@ async def sync_level_role(
 
     Конкретные уровни и названия ролей задаются в config.roles.
     Если список пока пуст, функция безопасно ничего не делает.
+    У участника остаётся только самая высокая доступная milestone-роль.
     """
 
-    target_name = get_level_role_name(
-        level
-    )
-
-    level_role_names = set(
-        LEVEL_ROLES.values()
-    )
+    target_name = get_level_role_name(level)
+    level_role_names = set(LEVEL_ROLES.values())
 
     current_level_roles = [
         role
