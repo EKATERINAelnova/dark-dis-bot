@@ -112,6 +112,7 @@ EXTENSIONS = [
     "cogs.welcome.welcome",
     "cogs.welcome.onboarding",
     "cogs.moderation.economy_admin",
+    "cogs.moderation.verification",
     "cogs.rituals.achievements",
     "cogs.rituals.rituals",
     "cogs.events.events",
