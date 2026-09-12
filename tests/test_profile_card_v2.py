@@ -16,6 +16,10 @@ def make_data(**overrides) -> ProfileCardData:
         "total_xp": 1000,
         "xp_to_next_level": 500,
         "eden_cases": 3,
+        "achievements_unlocked": 4,
+        "achievements_total": 12,
+        "duels": 6,
+        "closes": 9,
         "verification_status": "verified",
         "milestone_name": "Bloom",
     }
@@ -65,3 +69,12 @@ def test_unknown_verification_status_is_pending():
 def test_voice_time_is_localized():
     assert format_voice_time(0) == "0 мин"
     assert format_voice_time(3720) == "1 ч 02 мин"
+
+
+def test_profile_activity_counters_are_available():
+    data = make_data()
+
+    assert data.achievements_unlocked == 4
+    assert data.achievements_total == 12
+    assert data.duels == 6
+    assert data.closes == 9
