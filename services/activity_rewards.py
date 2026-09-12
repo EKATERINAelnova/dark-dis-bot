@@ -3,8 +3,7 @@ import time
 from dataclasses import dataclass
 
 from database.connection import get_db
-
-from utils.leveling import level_from_xp
+from services.progression import calculate_progression
 
 
 REWARD_KINDS = {
@@ -253,15 +252,13 @@ async def grant_activity_reward(
                         "Не удалось получить XP"
                     )
 
-                old_xp = int(row[0])
-                old_level = level_from_xp(old_xp)
-                new_xp = old_xp + amount
-                new_level = level_from_xp(new_xp)
-
-                cases_gained = max(
-                    0,
-                    new_level - old_level,
+                progression = calculate_progression(
+                    old_xp=int(row[0]),
+                    xp_gain=amount,
                 )
+
+                new_level = progression.new_level
+                cases_gained = progression.cases_gained
 
                 await db.execute(
                     """
@@ -273,8 +270,8 @@ async def grant_activity_reward(
                       AND user_id = ?
                     """,
                     (
-                        new_xp,
-                        cases_gained,
+                        progression.new_xp,
+                        progression.cases_gained,
                         guild_id,
                         user_id,
                     ),
