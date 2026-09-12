@@ -22,7 +22,7 @@ from utils.profile_card_v2 import (
 
 
 AVATAR_PATH = ASSETS_DIR / "preview_avatar.png"
-OUTPUT_PATH = PROJECT_ROOT / "preview_template_v2.png"
+OUTPUT_PATH = PROJECT_ROOT / "preview_template.png"
 
 
 class PreviewAvatar:
