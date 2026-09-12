@@ -8,7 +8,6 @@ from services.activities import (
     Activity,
     get_activity,
 )
-
 from services.close_teams import (
     TEAM_MODE_CAPTAINS,
     get_close_settings,
@@ -27,26 +26,13 @@ class CloseResult:
 
 
 async def init_close_results() -> None:
-    async with get_db() as db:
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS close_results (
-                activity_id INTEGER PRIMARY KEY,
-                winner_team TEXT NOT NULL,
-                submitted_by INTEGER NOT NULL,
-                confirmed_by INTEGER,
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at INTEGER NOT NULL,
-                confirmed_at INTEGER,
+    """
+    Оставлено временно для совместимости со старым Cog.
 
-                FOREIGN KEY (activity_id)
-                    REFERENCES activities(activity_id)
-                    ON DELETE CASCADE
-            )
-            """
-        )
+    Таблица close_results создаётся централизованно в database.schema.
+    """
 
-        await db.commit()
+    return None
 
 
 async def get_close_result(
