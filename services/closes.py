@@ -1,4 +1,5 @@
 import secrets
+import time
 
 from dataclasses import dataclass
 
@@ -233,13 +234,16 @@ async def start_close(
             cursor = await db.execute(
                 """
                 UPDATE activities
-                SET status = 'running'
+                SET
+                    status = 'running',
+                    starts_at = COALESCE(starts_at, ?)
                 WHERE guild_id = ?
                   AND activity_id = ?
                   AND type = 'close'
                   AND status = 'open'
                 """,
                 (
+                    int(time.time()),
                     guild_id,
                     activity_id,
                 ),
