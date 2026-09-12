@@ -9,7 +9,7 @@ from database.connection import get_db
 
 logger = logging.getLogger("lost_eden.database")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 async def _get_columns(
@@ -164,6 +164,28 @@ async def _create_tables(db) -> None:
                 activity_id,
                 user_id,
                 reward_key
+            ),
+
+            FOREIGN KEY (activity_id)
+                REFERENCES activities(activity_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS activity_reward_decisions (
+            activity_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            policy_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            decided_at INTEGER NOT NULL,
+
+            PRIMARY KEY (
+                activity_id,
+                user_id,
+                policy_key
             ),
 
             FOREIGN KEY (activity_id)
