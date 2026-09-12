@@ -41,6 +41,13 @@ RITUAL_REWARDS = [
 ]
 
 
+@dataclass(frozen=True)
+class RitualStatus:
+    available: bool
+    remaining_seconds: int = 0
+    next_available_at: int | None = None
+
+
 @dataclass
 class RitualResult:
     reward: RitualReward | None
@@ -61,11 +68,85 @@ def roll_ritual_reward() -> RitualReward:
     )[0]
 
 
+def build_ritual_status(
+    last_ritual_at: int | None,
+    current_time: int,
+) -> RitualStatus:
+    if not last_ritual_at or last_ritual_at <= 0:
+        return RitualStatus(
+            available=True,
+        )
+
+    next_available_at = (
+        last_ritual_at
+        + RITUAL_COOLDOWN
+    )
+    remaining_seconds = max(
+        0,
+        next_available_at - current_time,
+    )
+
+    return RitualStatus(
+        available=remaining_seconds == 0,
+        remaining_seconds=remaining_seconds,
+        next_available_at=(
+            None
+            if remaining_seconds == 0
+            else next_available_at
+        ),
+    )
+
+
+async def get_daily_ritual_status(
+    guild_id: int,
+    user_id: int,
+    current_time: int | None = None,
+) -> RitualStatus:
+    now = (
+        int(time.time())
+        if current_time is None
+        else int(current_time)
+    )
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT last_ritual_at
+            FROM daily_rituals
+            WHERE guild_id = ?
+              AND user_id = ?
+            """,
+            (
+                guild_id,
+                user_id,
+            ),
+        )
+
+        row = await cursor.fetchone()
+        await cursor.close()
+
+    last_ritual_at = (
+        int(row[0])
+        if row is not None
+        else None
+    )
+
+    return build_ritual_status(
+        last_ritual_at=last_ritual_at,
+        current_time=now,
+    )
+
+
 async def perform_daily_ritual(
     guild_id: int,
     user_id: int,
+    current_time: int | None = None,
 ) -> RitualResult:
-    now = int(time.time())
+    now = (
+        int(time.time())
+        if current_time is None
+        else int(current_time)
+    )
 
     async with get_db() as db:
         try:
@@ -118,23 +199,22 @@ async def perform_daily_ritual(
             row = await cursor.fetchone()
             await cursor.close()
 
-            last_ritual_at = int(
-                row[0]
+            if row is None:
+                raise RuntimeError(
+                    "Не удалось получить состояние ритуала"
+                )
+
+            status = build_ritual_status(
+                last_ritual_at=int(row[0]),
+                current_time=now,
             )
 
-            passed = (
-                now - last_ritual_at
-            )
-
-            if passed < RITUAL_COOLDOWN:
+            if not status.available:
                 await db.rollback()
 
                 return RitualResult(
                     reward=None,
-                    remaining_seconds=(
-                        RITUAL_COOLDOWN
-                        - passed
-                    ),
+                    remaining_seconds=status.remaining_seconds,
                 )
 
             reward = roll_ritual_reward()
