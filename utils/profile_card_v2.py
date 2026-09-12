@@ -14,27 +14,61 @@ FONT_PATH2 = BASE_DIR / "assets" / "Marcellus-Regular.ttf"
 TEMPLATE_SIZE = (1983, 793)
 TEXT_COLOR = "#E9D4B7"
 SECONDARY_TEXT_COLOR = "#C8AE91"
-VALUE_BG = (30, 22, 23, 220)
 
-AVATAR_X = 110
-AVATAR_Y = 130
-AVATAR_SIZE = 350
+# =========================
+# AVATAR
+# =========================
+# Центр круга шаблона примерно (292, 302).
+# Размер немного меньше внутреннего золотого кольца,
+# чтобы аватар не залезал на декоративную рамку.
+AVATAR_SIZE = 326
+AVATAR_X = 129
+AVATAR_Y = 139
 
-DISPLAY_NAME_BOX = (520, 176, 1125, 238)
-USERNAME_BOX = (520, 264, 1125, 316)
 
-VERIFICATION_BOX = (565, 517, 705, 552)
-MILESTONE_BOX = (755, 517, 895, 552)
-CASES_BOX = (965, 517, 1095, 552)
+# =========================
+# IDENTITY
+# =========================
+DISPLAY_NAME_CENTER = (835, 203)
+DISPLAY_NAME_MAX_WIDTH = 500
 
-LEVEL_BOX = (1320, 236, 1450, 306)
-RANK_BOX = (1650, 236, 1780, 306)
-TOTAL_XP_BOX = (1290, 407, 1465, 446)
-XP_NEXT_BOX = (1625, 407, 1805, 446)
-BALANCE_BOX = (1460, 493, 1810, 542)
+USERNAME_CENTER = (836, 285)
+USERNAME_MAX_WIDTH = 440
 
-VOICE_BOX = (565, 640, 955, 686)
-MESSAGES_BOX = (1370, 640, 1740, 686)
+
+# =========================
+# STATUS VALUES
+# =========================
+VERIFICATION_CENTER = (636, 524)
+VERIFICATION_MAX_WIDTH = 150
+
+MILESTONE_CENTER = (829, 524)
+MILESTONE_MAX_WIDTH = 160
+
+CASES_CENTER = (1025, 524)
+CASES_MAX_WIDTH = 110
+
+
+# =========================
+# PROGRESS VALUES
+# =========================
+LEVEL_CENTER = (1347, 268)
+RANK_CENTER = (1686, 268)
+
+TOTAL_XP_CENTER = (1348, 416)
+XP_NEXT_CENTER = (1686, 416)
+
+BALANCE_CENTER = (1594, 518)
+
+
+# =========================
+# ACTIVITY VALUES
+# =========================
+# Для нижнего блока используем одну baseline, а не mm-центрирование.
+# Так "0 min" и "1" стоят визуально на одной линии.
+ACTIVITY_BASELINE_Y = 655
+VOICE_CENTER_X = 752
+MESSAGES_CENTER_X = 1544
 
 
 @dataclass(frozen=True)
@@ -78,12 +112,6 @@ def verification_value(status: str) -> str:
 def get_profile_badges(
     data: ProfileCardData,
 ) -> list[tuple[str, str]]:
-    """
-    Оставлено как компактное представление статусов для тестов
-    и других интерфейсов. На новой карточке статусы рисуются
-    каждый в своей зоне.
-    """
-
     milestone = data.milestone_name or "NO MILESTONE"
 
     return [
@@ -115,42 +143,18 @@ def fit_font(
     return ImageFont.truetype(font_path, min_size)
 
 
-def add_value_background(
+def draw_centered_text(
     card: Image.Image,
-    box: tuple[int, int, int, int],
-    radius: int = 12,
-) -> None:
-    overlay = Image.new(
-        "RGBA",
-        card.size,
-        (0, 0, 0, 0),
-    )
-    draw = ImageDraw.Draw(overlay)
-    draw.rounded_rectangle(
-        box,
-        radius=radius,
-        fill=VALUE_BG,
-    )
-    card.alpha_composite(overlay)
-
-
-def draw_centered_value(
-    card: Image.Image,
-    box: tuple[int, int, int, int],
+    center: tuple[int, int],
     text: str,
     *,
+    max_width: int,
     start_size: int = 25,
     min_size: int = 13,
     font_path: Path = FONT_PATH,
     color: str = TEXT_COLOR,
-    background: bool = True,
 ) -> None:
-    if background:
-        add_value_background(card, box)
-
     draw = ImageDraw.Draw(card)
-    x1, y1, x2, y2 = box
-    max_width = max(10, x2 - x1 - 18)
 
     font = fit_font(
         draw=draw,
@@ -162,11 +166,43 @@ def draw_centered_value(
     )
 
     draw.text(
-        ((x1 + x2) / 2, (y1 + y2) / 2),
+        center,
         text,
         font=font,
         fill=color,
         anchor="mm",
+    )
+
+
+def draw_baseline_text(
+    card: Image.Image,
+    x: int,
+    baseline_y: int,
+    text: str,
+    *,
+    max_width: int,
+    start_size: int,
+    min_size: int,
+    font_path: Path = FONT_PATH,
+    color: str = TEXT_COLOR,
+) -> None:
+    draw = ImageDraw.Draw(card)
+
+    font = fit_font(
+        draw=draw,
+        text=text,
+        font_path=font_path,
+        start_size=start_size,
+        max_width=max_width,
+        min_size=min_size,
+    )
+
+    draw.text(
+        (x, baseline_y),
+        text,
+        font=font,
+        fill=color,
+        anchor="ms",
     )
 
 
@@ -175,10 +211,12 @@ async def prepare_avatar(
 ) -> Image.Image:
     avatar_bytes = await user.display_avatar.read()
     avatar = Image.open(BytesIO(avatar_bytes)).convert("RGBA")
+
     avatar = ImageOps.fit(
         avatar,
         (AVATAR_SIZE, AVATAR_SIZE),
         method=Image.Resampling.LANCZOS,
+        centering=(0.5, 0.5),
     )
 
     mask = Image.new(
@@ -217,20 +255,22 @@ def draw_identity(
     card: Image.Image,
     user: discord.Member,
 ) -> None:
-    draw_centered_value(
+    draw_centered_text(
         card,
-        DISPLAY_NAME_BOX,
+        DISPLAY_NAME_CENTER,
         user.display_name,
-        start_size=32,
+        max_width=DISPLAY_NAME_MAX_WIDTH,
+        start_size=31,
         min_size=18,
         font_path=FONT_PATH,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        USERNAME_BOX,
+        USERNAME_CENTER,
         username_text(user),
-        start_size=21,
+        max_width=USERNAME_MAX_WIDTH,
+        start_size=20,
         min_size=14,
         font_path=FONT_PATH2,
         color=SECONDARY_TEXT_COLOR,
@@ -241,28 +281,31 @@ def draw_statuses(
     card: Image.Image,
     data: ProfileCardData,
 ) -> None:
-    draw_centered_value(
+    draw_centered_text(
         card,
-        VERIFICATION_BOX,
+        VERIFICATION_CENTER,
         verification_value(data.verification_status),
-        start_size=17,
-        min_size=11,
-    )
-
-    draw_centered_value(
-        card,
-        MILESTONE_BOX,
-        data.milestone_name or "NOT OPENED",
+        max_width=VERIFICATION_MAX_WIDTH,
         start_size=16,
         min_size=10,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        CASES_BOX,
+        MILESTONE_CENTER,
+        data.milestone_name or "NOT OPENED",
+        max_width=MILESTONE_MAX_WIDTH,
+        start_size=15,
+        min_size=9,
+    )
+
+    draw_centered_text(
+        card,
+        CASES_CENTER,
         str(data.eden_cases),
-        start_size=24,
-        min_size=16,
+        max_width=CASES_MAX_WIDTH,
+        start_size=23,
+        min_size=15,
     )
 
 
@@ -270,43 +313,48 @@ def draw_progress_values(
     card: Image.Image,
     data: ProfileCardData,
 ) -> None:
-    draw_centered_value(
+    draw_centered_text(
         card,
-        LEVEL_BOX,
+        LEVEL_CENTER,
         str(data.level),
-        start_size=38,
+        max_width=95,
+        start_size=37,
         min_size=24,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        RANK_BOX,
+        RANK_CENTER,
         f"#{data.rank}",
+        max_width=105,
         start_size=34,
         min_size=22,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        TOTAL_XP_BOX,
+        TOTAL_XP_CENTER,
         format_number(data.total_xp),
-        start_size=22,
+        max_width=150,
+        start_size=21,
         min_size=14,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        XP_NEXT_BOX,
+        XP_NEXT_CENTER,
         format_number(data.xp_to_next_level),
-        start_size=22,
+        max_width=150,
+        start_size=21,
         min_size=14,
     )
 
-    draw_centered_value(
+    draw_centered_text(
         card,
-        BALANCE_BOX,
+        BALANCE_CENTER,
         format_number(data.currency),
-        start_size=24,
+        max_width=260,
+        start_size=23,
         min_size=15,
     )
 
@@ -315,19 +363,23 @@ def draw_activity_values(
     card: Image.Image,
     data: ProfileCardData,
 ) -> None:
-    draw_centered_value(
+    draw_baseline_text(
         card,
-        VOICE_BOX,
+        VOICE_CENTER_X,
+        ACTIVITY_BASELINE_Y,
         format_voice_time(data.voice_seconds),
-        start_size=23,
+        max_width=220,
+        start_size=22,
         min_size=14,
     )
 
-    draw_centered_value(
+    draw_baseline_text(
         card,
-        MESSAGES_BOX,
+        MESSAGES_CENTER_X,
+        ACTIVITY_BASELINE_Y,
         format_number(data.messages),
-        start_size=23,
+        max_width=180,
+        start_size=22,
         min_size=14,
     )
 
