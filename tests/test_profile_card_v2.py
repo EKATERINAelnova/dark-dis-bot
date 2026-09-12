@@ -1,6 +1,7 @@
 from utils.profile_card_v2 import (
     ProfileCardData,
     get_profile_badges,
+    verification_value,
 )
 
 
@@ -21,36 +22,40 @@ def make_data(**overrides) -> ProfileCardData:
     return ProfileCardData(**values)
 
 
-def test_verified_profile_badges_include_milestone_and_cases():
-    badges = get_profile_badges(make_data())
+def test_verified_profile_values():
+    data = make_data()
+    values = get_profile_badges(data)
 
-    assert [text for text, _ in badges] == [
-        "VERIFIED",
-        "Bloom",
-        "CASES · 3",
+    assert values == [
+        ("VERIFIED", "verification"),
+        ("Bloom", "milestone"),
+        ("CASES · 3", "cases"),
     ]
 
 
-def test_pending_profile_without_milestone_stays_compact():
-    badges = get_profile_badges(
-        make_data(
-            verification_status="pending",
-            milestone_name=None,
-            eden_cases=0,
-        )
+def test_pending_profile_without_milestone():
+    data = make_data(
+        verification_status="pending",
+        milestone_name=None,
+        eden_cases=0,
     )
 
-    assert [text for text, _ in badges] == [
-        "PENDING",
-        "CASES · 0",
+    values = get_profile_badges(data)
+
+    assert values == [
+        ("PENDING", "verification"),
+        ("NO MILESTONE", "milestone"),
+        ("CASES · 0", "cases"),
     ]
 
 
-def test_unconfigured_verification_has_separate_badge():
-    badges = get_profile_badges(
-        make_data(
-            verification_status="unconfigured",
-        )
-    )
+def test_unconfigured_verification_value():
+    assert verification_value(
+        "unconfigured"
+    ) == "NOT SET"
 
-    assert badges[0][0] == "VERIFICATION OFF"
+
+def test_unknown_verification_status_is_pending():
+    assert verification_value(
+        "something_else"
+    ) == "PENDING"
