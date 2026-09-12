@@ -14,6 +14,13 @@ from services.activity_rewards import (
 )
 from services.close_results import get_close_result
 from services.close_teams import get_close_teams
+from services.reward_decisions import (
+    get_reward_decision,
+    save_reward_decision,
+)
+
+
+CLOSE_REWARD_POLICY = "close:auto"
 
 
 async def check_close_reward_allowed(
@@ -21,6 +28,15 @@ async def check_close_reward_allowed(
     activity_id: int,
     user_id: int,
 ) -> str:
+    saved_status = await get_reward_decision(
+        activity_id=activity_id,
+        user_id=user_id,
+        policy_key=CLOSE_REWARD_POLICY,
+    )
+
+    if saved_status is not None:
+        return saved_status
+
     now = int(time.time())
 
     async with get_db() as db:
@@ -50,10 +66,18 @@ async def check_close_reward_allowed(
 
     rewarded_closes = int(row[0] or 0)
 
-    if rewarded_closes >= CLOSE_REWARD_DAILY_LIMIT:
-        return "daily_limit"
+    status = (
+        "daily_limit"
+        if rewarded_closes >= CLOSE_REWARD_DAILY_LIMIT
+        else "allowed"
+    )
 
-    return "allowed"
+    return await save_reward_decision(
+        activity_id=activity_id,
+        user_id=user_id,
+        policy_key=CLOSE_REWARD_POLICY,
+        status=status,
+    )
 
 
 async def reward_close_automatically(
