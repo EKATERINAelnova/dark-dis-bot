@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-PROFILE_TEMPLATE_V2 = BASE_DIR / "assets" / "profile_template_v2.png"
+PROFILE_TEMPLATE_V2 = BASE_DIR / "assets" / "temp.png"
 FONT_PATH = BASE_DIR / "assets" / "Merriweather_24pt-Regular.ttf"
 FONT_PATH2 = BASE_DIR / "assets" / "Marcellus-Regular.ttf"
 
@@ -22,32 +22,34 @@ AVATAR_SIZE = 345
 AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
 AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 
-DISPLAY_NAME_POS = (797, 216)
+DISPLAY_NAME_POS = (807, 226)
 DISPLAY_NAME_MAX_WIDTH = 390
 
-USERNAME_POS = (716, 289)
+USERNAME_POS = (635, 300)
 USERNAME_MAX_WIDTH = 390
 
-VERIFICATION_CENTER = (654, 538)
+VERIFICATION_CENTER = (650, 540)
 VERIFICATION_MAX_WIDTH = 135
 
-MILESTONE_CENTER = (835, 535)
+MILESTONE_CENTER = (852, 540)
 MILESTONE_MAX_WIDTH = 150
 
-CASES_CENTER = (1058, 524)
+CASES_CENTER = (1057, 540)
 CASES_MAX_WIDTH = 90
 
-LEVEL_CENTER = (1389, 277)
-RANK_CENTER = (1742, 277)
+LEVEL_CENTER = (1387, 279)
+RANK_CENTER = (1742, 279)
 
-TOTAL_XP_CENTER = (1389, 448)
-XP_NEXT_CENTER = (1742, 448)
+TOTAL_XP_CENTER = (1386, 415)
+XP_NEXT_CENTER = (1740, 415)
 
-BALANCE_CENTER = (1592, 525)
+BALANCE_CENTER = (1661, 515)
 
-VOICE_CENTER = (755, 635)
-MESSAGES_CENTER = (1520, 635)
-
+VOICE_CENTER = (442, 662)
+MESSAGES_CENTER = (774, 662)
+ARCH_CENTER = (1097, 662)
+DUELS_CENTER = (1450, 662)
+CLOSE_CENTER = (1785, 662)
 
 @dataclass(frozen=True)
 class ProfileCardData:
@@ -405,7 +407,7 @@ async def create_profile_card_v2(
     if not PROFILE_TEMPLATE_V2.exists():
         raise FileNotFoundError(
             "Не найден новый шаблон профиля: "
-            "assets/profile_template_v2.png"
+            "assets/temp.png"
         )
 
     card = Image.open(
@@ -414,7 +416,7 @@ async def create_profile_card_v2(
 
     if card.size != TEMPLATE_SIZE:
         raise RuntimeError(
-            "profile_template_v2.png должен иметь размер "
+            "temp.png должен иметь размер "
             f"{TEMPLATE_SIZE[0]}x{TEMPLATE_SIZE[1]}, "
             f"получено "
             f"{card.size[0]}x{card.size[1]}"
