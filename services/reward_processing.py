@@ -2,8 +2,10 @@ import logging
 
 import discord
 
+from database.member_stats import get_member_stats
 from services.achievements import check_achievements
 from services.level_roles import sync_level_role
+from utils.leveling import level_from_xp
 
 
 logger = logging.getLogger("lost_eden.rewards")
@@ -16,6 +18,9 @@ async def process_xp_rewards(
     """
     Применяет побочные эффекты после выдачи наград:
     достижения и актуальную milestone-роль уровня.
+
+    Роль сверяется с текущим XP из БД. Это важно для retry:
+    выплата могла пройти до сбоя, а Discord-роль не успеть обновиться.
     """
 
     user_ids = {
@@ -29,26 +34,35 @@ async def process_xp_rewards(
             user_id=user_id,
         )
 
-    for result in results:
+    xp_user_ids = {
+        result.user_id
+        for result in results
         if (
-            result.status != "granted"
-            or result.reward_kind != "xp"
-            or result.cases_gained <= 0
-            or result.new_level is None
-        ):
-            continue
+            result.reward_kind == "xp"
+            and result.status in {
+                "granted",
+                "already_granted",
+            }
+        )
+    }
 
+    for user_id in xp_user_ids:
         member = guild.get_member(
-            result.user_id
+            user_id
         )
 
         if member is None:
             continue
 
+        stats = await get_member_stats(
+            guild_id=guild.id,
+            user_id=user_id,
+        )
+
         try:
             await sync_level_role(
                 member=member,
-                level=result.new_level,
+                level=level_from_xp(stats.xp),
             )
 
         except (
@@ -58,5 +72,5 @@ async def process_xp_rewards(
             logger.exception(
                 "Не удалось синхронизировать level-role | guild=%s | user=%s",
                 guild.id,
-                result.user_id,
+                user_id,
             )
