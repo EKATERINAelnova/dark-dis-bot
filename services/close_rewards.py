@@ -37,9 +37,29 @@ async def check_close_reward_allowed(
     if saved_status is not None:
         return saved_status
 
-    now = int(time.time())
-
     async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT confirmed_at
+            FROM close_results
+            WHERE activity_id = ?
+              AND status = 'confirmed'
+            """,
+            (activity_id,),
+        )
+
+        confirmed_row = await cursor.fetchone()
+        await cursor.close()
+
+        reference_time = (
+            int(confirmed_row[0])
+            if (
+                confirmed_row is not None
+                and confirmed_row[0] is not None
+            )
+            else int(time.time())
+        )
+
         cursor = await db.execute(
             """
             SELECT COUNT(DISTINCT p.activity_id)
@@ -52,12 +72,14 @@ async def check_close_reward_allowed(
               AND p.activity_id != ?
               AND p.reward_key = 'auto:close:participation:xp'
               AND p.granted_at >= ?
+              AND p.granted_at <= ?
             """,
             (
                 guild_id,
                 user_id,
                 activity_id,
-                now - CLOSE_REWARD_WINDOW_SECONDS,
+                reference_time - CLOSE_REWARD_WINDOW_SECONDS,
+                reference_time,
             ),
         )
 
