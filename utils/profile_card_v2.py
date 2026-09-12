@@ -14,9 +14,6 @@ FONT_PATH2 = BASE_DIR / "assets" / "Marcellus-Regular.ttf"
 TEMPLATE_SIZE = (1983, 793)
 TEXT_COLOR = "#E9D4B7"
 SECONDARY_TEXT_COLOR = "#C8AE91"
-LABEL_COLOR = "#D9BD98"
-IDENTITY_PANEL_BG = (31, 23, 24, 255)
-PANEL_BG = (38, 29, 31, 255)
 
 
 # Текущие координаты профиля. Не менять без ручной подгонки шаблона.
@@ -50,24 +47,6 @@ BALANCE_CENTER = (1592, 525)
 
 VOICE_CENTER = (755, 635)
 MESSAGES_CENTER = (1520, 635)
-
-
-# Английские подписи зашиты в PNG-шаблон.
-# Эти области закрывают исходный текст и рисуют русские подписи поверх.
-INTERFACE_LABELS = (
-    ((525, 188, 750, 226), (637, 207), "ИМЯ", 180, 17, IDENTITY_PANEL_BG),
-    ((525, 265, 705, 304), (615, 285), "НИК", 135, 17, IDENTITY_PANEL_BG),
-    ((555, 464, 714, 514), (634, 489), "ВЕРИФИКАЦИЯ", 145, 13, PANEL_BG),
-    ((755, 464, 904, 514), (829, 489), "ЮБИЛЕЙНАЯ РОЛЬ", 135, 12, PANEL_BG),
-    ((950, 465, 1100, 510), (1025, 487), "КЕЙСЫ EDEN", 135, 14, PANEL_BG),
-    ((1280, 175, 1450, 215), (1365, 195), "УРОВЕНЬ", 145, 18, PANEL_BG),
-    ((1620, 175, 1765, 215), (1692, 195), "МЕСТО", 125, 18, PANEL_BG),
-    ((1280, 370, 1450, 405), (1365, 388), "ВСЕГО XP", 145, 14, PANEL_BG),
-    ((1580, 370, 1805, 405), (1692, 388), "ДО СЛЕД. УРОВНЯ", 205, 13, PANEL_BG),
-    ((1310, 495, 1460, 538), (1385, 516), "БАЛАНС", 130, 17, PANEL_BG),
-    ((555, 615, 700, 653), (627, 634), "В ГОЛОСЕ", 130, 14, PANEL_BG),
-    ((1350, 615, 1485, 653), (1418, 634), "СООБЩЕНИЯ", 125, 14, PANEL_BG),
-)
 
 
 @dataclass(frozen=True)
@@ -221,42 +200,6 @@ def draw_left_text(
         fill=color,
         anchor="lm",
     )
-
-
-def draw_interface_labels(
-    card: Image.Image,
-) -> None:
-    draw = ImageDraw.Draw(card)
-
-    for (
-        box,
-        center,
-        text,
-        max_width,
-        start_size,
-        background,
-    ) in INTERFACE_LABELS:
-        draw.rectangle(
-            box,
-            fill=background,
-        )
-
-        font = fit_font(
-            draw=draw,
-            text=text,
-            font_path=FONT_PATH,
-            start_size=start_size,
-            max_width=max_width,
-            min_size=9,
-        )
-
-        draw.text(
-            center,
-            text,
-            font=font,
-            fill=LABEL_COLOR,
-            anchor="mm",
-        )
 
 
 async def prepare_avatar(
@@ -476,8 +419,6 @@ async def create_profile_card_v2(
             f"получено "
             f"{card.size[0]}x{card.size[1]}"
         )
-
-    draw_interface_labels(card)
 
     avatar = await prepare_avatar(user)
     card.paste(
