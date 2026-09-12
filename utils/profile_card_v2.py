@@ -51,6 +51,7 @@ ARCH_CENTER = (1097, 662)
 DUELS_CENTER = (1450, 662)
 CLOSE_CENTER = (1785, 662)
 
+
 @dataclass(frozen=True)
 class ProfileCardData:
     level: int
@@ -61,6 +62,10 @@ class ProfileCardData:
     total_xp: int
     xp_to_next_level: int
     eden_cases: int
+    achievements_unlocked: int
+    achievements_total: int
+    duels: int
+    closes: int
     verification_status: str
     milestone_name: str | None = None
 
@@ -395,6 +400,36 @@ def draw_activity_values(
         MESSAGES_CENTER,
         format_number(data.messages),
         max_width=170,
+        start_size=18,
+        min_size=12,
+    )
+
+    draw_centered_text(
+        card,
+        ARCH_CENTER,
+        (
+            f"{data.achievements_unlocked}/"
+            f"{data.achievements_total}"
+        ),
+        max_width=140,
+        start_size=18,
+        min_size=12,
+    )
+
+    draw_centered_text(
+        card,
+        DUELS_CENTER,
+        format_number(data.duels),
+        max_width=130,
+        start_size=18,
+        min_size=12,
+    )
+
+    draw_centered_text(
+        card,
+        CLOSE_CENTER,
+        format_number(data.closes),
+        max_width=130,
         start_size=18,
         min_size=12,
     )
