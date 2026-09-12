@@ -3,9 +3,9 @@ import discord
 from config.economy import (
     CURRENCY_SYMBOL,
     EVENT_REWARD_PRESET_NAMES,
-    EVENT_REWARD_PRESETS,
 )
 from services.achievements import check_achievements
+from services.automatic_activity_rewards import get_event_rewards
 from services.level_roles import sync_level_role
 
 
@@ -40,37 +40,6 @@ def encode_custom_event_reward(
     cases: int,
 ) -> str:
     return f"custom:{currency}:{xp}:{cases}"
-
-
-def get_event_rewards(
-    reward_preset: str | None,
-) -> dict[str, int]:
-    key = reward_preset or "standard"
-
-    if key.startswith("custom:"):
-        try:
-            _, currency, xp, cases = key.split(":")
-
-            return {
-                "currency": int(currency),
-                "xp": int(xp),
-                "case": int(cases),
-            }
-        except (ValueError, TypeError):
-            return {
-                "currency": 0,
-                "xp": 0,
-                "case": 0,
-            }
-
-    return EVENT_REWARD_PRESETS.get(
-        key,
-        {
-            "currency": 0,
-            "xp": 0,
-            "case": 0,
-        },
-    )
 
 
 def format_event_reward_preset(
