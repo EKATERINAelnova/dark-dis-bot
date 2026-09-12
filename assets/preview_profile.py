@@ -24,7 +24,7 @@ AVATAR_PATH = (
 
 OUTPUT_PATH = (
     PROJECT_ROOT
-    / "preview_template_v2.png"
+    / "preview_profile.png"
 )
 
 class PreviewAvatar:

@@ -21,8 +21,8 @@ SECONDARY_TEXT_COLOR = "#C8AE91"
 # =========================================================
 # В финальном шаблоне внутренний круг немного меньше прежнего.
 # Размер уменьшаем, центр оставляем в центре рамки.
-AVATAR_CENTER = (292, 303)
-AVATAR_SIZE = 320
+AVATAR_CENTER = (301, 310)
+AVATAR_SIZE = 345
 AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
 AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 
@@ -32,10 +32,10 @@ AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 # =========================================================
 # Координаты соответствуют финальному макету:
 # значение начинается сразу после подписи слева.
-DISPLAY_NAME_POS = (690, 204)
+DISPLAY_NAME_POS = (797, 216)
 DISPLAY_NAME_MAX_WIDTH = 390
 
-USERNAME_POS = (716, 285)
+USERNAME_POS = (716, 289)
 USERNAME_MAX_WIDTH = 390
 
 
@@ -43,13 +43,13 @@ USERNAME_MAX_WIDTH = 390
 # STATUS VALUES
 # =========================================================
 # Значения находятся между названием блока и нижней декоративной линией.
-VERIFICATION_CENTER = (654, 529)
+VERIFICATION_CENTER = (654, 538)
 VERIFICATION_MAX_WIDTH = 135
 
-MILESTONE_CENTER = (829, 529)
+MILESTONE_CENTER = (835, 535)
 MILESTONE_MAX_WIDTH = 150
 
-CASES_CENTER = (1025, 529)
+CASES_CENTER = (1058, 524)
 CASES_MAX_WIDTH = 90
 
 
@@ -57,12 +57,12 @@ CASES_MAX_WIDTH = 90
 # PROGRESS VALUES
 # =========================================================
 # Центры кругов LEVEL / RANK в финальном шаблоне.
-LEVEL_CENTER = (1385, 247)
-RANK_CENTER = (1725, 247)
+LEVEL_CENTER = (1389, 277)
+RANK_CENTER = (1742, 277)
 
 # Центры значений нижнего ряда правого блока.
-TOTAL_XP_CENTER = (1385, 448)
-XP_NEXT_CENTER = (1725, 448)
+TOTAL_XP_CENTER = (1389, 448)
+XP_NEXT_CENTER = (1742, 448)
 
 BALANCE_CENTER = (1592, 525)
 
