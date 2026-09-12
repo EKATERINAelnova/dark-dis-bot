@@ -19,8 +19,8 @@ SECONDARY_TEXT_COLOR = "#C8AE91"
 # =========================================================
 # AVATAR
 # =========================================================
-# Аватар привязан к центру круглой рамки шаблона.
-# Так его положение не зависит от изменения размера.
+# Центр внутренней области круглой рамки шаблона.
+# X/Y вычисляются только от центра, поэтому аватар не смещается.
 AVATAR_CENTER = (292, 303)
 AVATAR_SIZE = 338
 AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
@@ -30,50 +30,53 @@ AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 # =========================================================
 # IDENTITY
 # =========================================================
-# Значения начинаются после уже нарисованных DISPLAY NAME / @USERNAME.
-# Не центрируем текст поверх всей строки, иначе длинные имена залезают
-# на подпись шаблона.
-DISPLAY_NAME_POS = (705, 204)
-DISPLAY_NAME_MAX_WIDTH = 375
+# Значения стоят в одной строке с подписями шаблона,
+# но начинаются после DISPLAY NAME / @USERNAME.
+DISPLAY_NAME_POS = (775, 204)
+DISPLAY_NAME_MAX_WIDTH = 315
 
 USERNAME_POS = (720, 285)
-USERNAME_MAX_WIDTH = 360
+USERNAME_MAX_WIDTH = 365
 
 
 # =========================================================
 # STATUS VALUES
 # =========================================================
-# Значения находятся между подписью и нижней декоративной линией.
-VERIFICATION_CENTER = (635, 520)
-VERIFICATION_MAX_WIDTH = 130
+# Подписи занимают верхнюю часть секций, декоративная линия идёт
+# примерно на y=533. Значения помещаем ниже неё, в свободную полосу.
+VERIFICATION_CENTER = (635, 547)
+VERIFICATION_MAX_WIDTH = 135
 
-MILESTONE_CENTER = (829, 520)
-MILESTONE_MAX_WIDTH = 145
+MILESTONE_CENTER = (829, 547)
+MILESTONE_MAX_WIDTH = 150
 
-CASES_CENTER = (1025, 520)
+CASES_CENTER = (1025, 547)
 CASES_MAX_WIDTH = 90
 
 
 # =========================================================
 # PROGRESS VALUES
 # =========================================================
-LEVEL_CENTER = (1347, 268)
-RANK_CENTER = (1686, 268)
+# В центре кругов уже нарисована звезда. Числа ставим в верхнюю
+# половину окружности, чтобы не накладывать текст на декор.
+LEVEL_CENTER = (1347, 242)
+RANK_CENTER = (1686, 242)
 
-# Поднимаем XP относительно декоративной звезды и линии.
-TOTAL_XP_CENTER = (1347, 411)
-XP_NEXT_CENTER = (1686, 411)
+# Заголовки TOTAL XP / XP TO NEXT LEVEL находятся над линией со звездой.
+# Значения размещаем ниже этой линии, где есть отдельная свободная полоса.
+TOTAL_XP_CENTER = (1347, 450)
+XP_NEXT_CENTER = (1686, 450)
 
-# Число баланса располагается в свободной части строки справа.
 BALANCE_CENTER = (1592, 511)
 
 
 # =========================================================
 # ACTIVITY VALUES
 # =========================================================
-# Значения идут под заголовком, но выше нижней линии.
-VOICE_CENTER = (748, 650)
-MESSAGES_CENTER = (1540, 650)
+# VOICE TIME / MESSAGES уже напечатаны слева в своих половинах.
+# Значения продолжают ту же строку и используют одинаковую высоту.
+VOICE_CENTER = (760, 635)
+MESSAGES_CENTER = (1545, 635)
 
 
 @dataclass(frozen=True)
@@ -295,8 +298,8 @@ def draw_identity(
         DISPLAY_NAME_POS,
         user.display_name,
         max_width=DISPLAY_NAME_MAX_WIDTH,
-        start_size=27,
-        min_size=16,
+        start_size=25,
+        min_size=15,
         font_path=FONT_PATH,
     )
 
@@ -323,8 +326,8 @@ def draw_statuses(
             data.verification_status
         ),
         max_width=VERIFICATION_MAX_WIDTH,
-        start_size=13,
-        min_size=9,
+        start_size=11,
+        min_size=8,
         font_path=FONT_PATH2,
     )
 
@@ -333,8 +336,8 @@ def draw_statuses(
         MILESTONE_CENTER,
         data.milestone_name or "NOT OPENED",
         max_width=MILESTONE_MAX_WIDTH,
-        start_size=13,
-        min_size=9,
+        start_size=11,
+        min_size=8,
         font_path=FONT_PATH2,
     )
 
@@ -343,8 +346,8 @@ def draw_statuses(
         CASES_CENTER,
         str(data.eden_cases),
         max_width=CASES_MAX_WIDTH,
-        start_size=20,
-        min_size=14,
+        start_size=17,
+        min_size=12,
     )
 
 
@@ -357,8 +360,8 @@ def draw_progress_values(
         LEVEL_CENTER,
         str(data.level),
         max_width=85,
-        start_size=34,
-        min_size=23,
+        start_size=28,
+        min_size=20,
     )
 
     draw_centered_text(
@@ -366,8 +369,8 @@ def draw_progress_values(
         RANK_CENTER,
         f"#{data.rank}",
         max_width=95,
-        start_size=31,
-        min_size=21,
+        start_size=27,
+        min_size=19,
     )
 
     draw_centered_text(
@@ -375,8 +378,8 @@ def draw_progress_values(
         TOTAL_XP_CENTER,
         format_number(data.total_xp),
         max_width=145,
-        start_size=18,
-        min_size=13,
+        start_size=17,
+        min_size=12,
     )
 
     draw_centered_text(
@@ -386,8 +389,8 @@ def draw_progress_values(
             data.xp_to_next_level
         ),
         max_width=145,
-        start_size=18,
-        min_size=13,
+        start_size=17,
+        min_size=12,
     )
 
     draw_centered_text(
@@ -411,8 +414,8 @@ def draw_activity_values(
             data.voice_seconds
         ),
         max_width=205,
-        start_size=19,
-        min_size=13,
+        start_size=18,
+        min_size=12,
     )
 
     draw_centered_text(
@@ -420,8 +423,8 @@ def draw_activity_values(
         MESSAGES_CENTER,
         format_number(data.messages),
         max_width=170,
-        start_size=19,
-        min_size=13,
+        start_size=18,
+        min_size=12,
     )
 
 
