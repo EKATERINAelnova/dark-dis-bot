@@ -63,6 +63,7 @@ async def test_random_close_cannot_start_twice(test_db):
 
     assert stored is not None
     assert stored.status == "running"
+    assert stored.starts_at is not None
     assert len(teams.team_a) == 2
     assert len(teams.team_b) == 2
     assert teams.waiting == []
