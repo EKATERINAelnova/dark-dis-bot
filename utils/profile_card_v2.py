@@ -16,33 +16,18 @@ TEXT_COLOR = "#E9D4B7"
 SECONDARY_TEXT_COLOR = "#C8AE91"
 
 
-# =========================================================
-# AVATAR
-# =========================================================
-# В финальном шаблоне внутренний круг немного меньше прежнего.
-# Размер уменьшаем, центр оставляем в центре рамки.
+# Текущие координаты профиля. Не менять без ручной подгонки шаблона.
 AVATAR_CENTER = (301, 310)
 AVATAR_SIZE = 345
 AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
 AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 
-
-# =========================================================
-# IDENTITY
-# =========================================================
-# Координаты соответствуют финальному макету:
-# значение начинается сразу после подписи слева.
 DISPLAY_NAME_POS = (797, 216)
 DISPLAY_NAME_MAX_WIDTH = 390
 
 USERNAME_POS = (716, 289)
 USERNAME_MAX_WIDTH = 390
 
-
-# =========================================================
-# STATUS VALUES
-# =========================================================
-# Значения находятся между названием блока и нижней декоративной линией.
 VERIFICATION_CENTER = (654, 538)
 VERIFICATION_MAX_WIDTH = 135
 
@@ -52,24 +37,14 @@ MILESTONE_MAX_WIDTH = 150
 CASES_CENTER = (1058, 524)
 CASES_MAX_WIDTH = 90
 
-
-# =========================================================
-# PROGRESS VALUES
-# =========================================================
-# Центры кругов LEVEL / RANK в финальном шаблоне.
 LEVEL_CENTER = (1389, 277)
 RANK_CENTER = (1742, 277)
 
-# Центры значений нижнего ряда правого блока.
 TOTAL_XP_CENTER = (1389, 448)
 XP_NEXT_CENTER = (1742, 448)
 
 BALANCE_CENTER = (1592, 525)
 
-
-# =========================================================
-# ACTIVITY VALUES
-# =========================================================
 VOICE_CENTER = (755, 635)
 MESSAGES_CENTER = (1520, 635)
 
@@ -97,25 +72,25 @@ def format_voice_time(seconds: int) -> str:
     hours, minutes = divmod(total_minutes, 60)
 
     if hours > 0:
-        return f"{hours} h {minutes:02} min"
+        return f"{hours} ч {minutes:02} мин"
 
-    return f"{minutes} min"
+    return f"{minutes} мин"
 
 
 def verification_value(status: str) -> str:
     if status == "verified":
-        return "VERIFIED"
+        return "ПРОЙДЕНА"
 
     if status == "unconfigured":
-        return "NOT SET"
+        return "НЕ НАСТРОЕНА"
 
-    return "PENDING"
+    return "ОЖИДАЕТ"
 
 
 def get_profile_badges(
     data: ProfileCardData,
 ) -> list[tuple[str, str]]:
-    milestone = data.milestone_name or "NOT OPENED"
+    milestone = data.milestone_name or "НЕ ОТКРЫТА"
 
     return [
         (
@@ -323,17 +298,17 @@ def draw_statuses(
         max_width=VERIFICATION_MAX_WIDTH,
         start_size=12,
         min_size=8,
-        font_path=FONT_PATH2,
+        font_path=FONT_PATH,
     )
 
     draw_centered_text(
         card,
         MILESTONE_CENTER,
-        data.milestone_name or "NOT OPENED",
+        data.milestone_name or "НЕ ОТКРЫТА",
         max_width=MILESTONE_MAX_WIDTH,
         start_size=12,
         min_size=8,
-        font_path=FONT_PATH2,
+        font_path=FONT_PATH,
     )
 
     draw_centered_text(
