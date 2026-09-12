@@ -40,3 +40,7 @@ async def test_member_progress_combines_level_and_activity(test_db, monkeypatch)
     assert progress.activities.events.participations == 0
     assert progress.activities.duels.participations == 0
     assert progress.activities.closes.participations == 0
+    assert progress.achievements_unlocked == 0
+    assert progress.achievements_total > 0
+    assert progress.ritual_available is True
+    assert progress.ritual_remaining_seconds == 0
