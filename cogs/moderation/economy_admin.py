@@ -2,22 +2,25 @@ import discord
 
 from discord import app_commands
 from discord.ext import commands
-from database.member_stats import add_xp, get_member_stats
-from services.level_roles import sync_level_role
-from utils.leveling import level_from_xp
-from services.achievements import check_achievements
 
 from config.economy import (
     CURRENCY_SYMBOL,
     REASON_ADMIN,
 )
-
 from database.economy import change_balance
-
-from utils.embeds import (
-    success_embed,
-    error_embed,
+from database.member_stats import (
+    add_xp,
+    get_member_stats,
 )
+from services.achievements import check_achievements
+from services.level_roles import sync_level_role
+from services.reward_processing import process_xp_rewards
+from services.reward_recovery import retry_activity_rewards
+from utils.embeds import (
+    error_embed,
+    success_embed,
+)
+from utils.leveling import level_from_xp
 
 
 class EconomyAdmin(commands.Cog):
@@ -41,6 +44,9 @@ class EconomyAdmin(commands.Cog):
         user: discord.Member,
         amount: app_commands.Range[int, 1, 1000000],
     ):
+        if interaction.guild is None:
+            return
+
         await interaction.response.defer(
             ephemeral=True
         )
@@ -50,6 +56,7 @@ class EconomyAdmin(commands.Cog):
             user_id=user.id,
             amount=amount,
         )
+
         await check_achievements(
             guild_id=interaction.guild.id,
             user_id=user.id,
@@ -141,6 +148,9 @@ class EconomyAdmin(commands.Cog):
         interaction: discord.Interaction,
         user: discord.Member,
     ):
+        if interaction.guild is None:
+            return
+
         await interaction.response.defer(
             ephemeral=True
         )
@@ -174,6 +184,85 @@ class EconomyAdmin(commands.Cog):
 
         await interaction.followup.send(
             text,
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="повторить-награды",
+        description="Повторить автоматическую выдачу наград активности",
+    )
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
+    async def retry_rewards(
+        self,
+        interaction: discord.Interaction,
+        activity_id: int,
+    ) -> None:
+        if interaction.guild is None:
+            return
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        recovery = await retry_activity_rewards(
+            guild_id=interaction.guild.id,
+            activity_id=activity_id,
+            actor_id=interaction.user.id,
+        )
+
+        error_messages = {
+            "not_found": "Активность не найдена.",
+            "not_finished": "Сначала активность должна быть завершена.",
+            "result_not_confirmed": (
+                "Результат этой активности ещё не подтверждён."
+            ),
+            "unsupported_type": (
+                "Для этого типа активности автоматические награды "
+                "не поддерживаются."
+            ),
+        }
+
+        if recovery.status != "processed":
+            await interaction.followup.send(
+                error_messages.get(
+                    recovery.status,
+                    "Не удалось повторить выдачу наград.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        await process_xp_rewards(
+            guild=interaction.guild,
+            results=recovery.rewards,
+        )
+
+        granted = sum(
+            result.status == "granted"
+            for result in recovery.rewards
+        )
+
+        already_granted = sum(
+            result.status == "already_granted"
+            for result in recovery.rewards
+        )
+
+        skipped = (
+            len(recovery.rewards)
+            - granted
+            - already_granted
+        )
+
+        await interaction.followup.send(
+            (
+                f"Награды активности **#{activity_id}** проверены.\n\n"
+                f"Выдано сейчас: **{granted}**\n"
+                f"Уже было выдано: **{already_granted}**\n"
+                f"Не положено по правилам: **{skipped}**"
+            ),
             ephemeral=True,
         )
 
