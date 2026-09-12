@@ -18,6 +18,19 @@ def format_voice_time(seconds: int) -> str:
     return f"{minutes} мин"
 
 
+def format_remaining_time(seconds: int) -> str:
+    hours, remainder = divmod(max(0, seconds), 3600)
+    minutes = remainder // 60
+
+    if hours > 0:
+        return f"{hours} ч {minutes} мин"
+
+    if minutes > 0:
+        return f"{minutes} мин"
+
+    return "меньше минуты"
+
+
 def format_milestone(progress) -> str:
     if not LEVEL_ROLES:
         return "Список юбилейных ролей пока не настроен."
@@ -46,6 +59,17 @@ def format_milestone(progress) -> str:
         )
 
     return "\n".join(lines)
+
+
+def format_ritual(progress) -> str:
+    if progress.ritual_available:
+        return "**доступен сейчас**"
+
+    return (
+        "через **"
+        f"{format_remaining_time(progress.ritual_remaining_seconds)}"
+        "**"
+    )
 
 
 class Progress(commands.Cog):
@@ -96,6 +120,16 @@ class Progress(commands.Cog):
                 f"До следующего уровня: **{progress.xp_to_next_level} XP**\n"
                 f"Место в рейтинге: **#{progress.rank}**\n"
                 f"EDEN CASES: **{stats.eden_cases}**"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="САД",
+            value=(
+                f"Достижения: **{progress.achievements_unlocked}/"
+                f"{progress.achievements_total}**\n"
+                f"Ежедневный ритуал: {format_ritual(progress)}"
             ),
             inline=False,
         )
