@@ -15,60 +15,65 @@ TEMPLATE_SIZE = (1983, 793)
 TEXT_COLOR = "#E9D4B7"
 SECONDARY_TEXT_COLOR = "#C8AE91"
 
-# =========================
+
+# =========================================================
 # AVATAR
-# =========================
-# Центр круга шаблона примерно (292, 302).
-# Размер немного меньше внутреннего золотого кольца,
-# чтобы аватар не залезал на декоративную рамку.
-AVATAR_SIZE = 326
-AVATAR_X = 129
-AVATAR_Y = 139
+# =========================================================
+# Аватар привязан к центру круглой рамки шаблона.
+# Так его положение не зависит от изменения размера.
+AVATAR_CENTER = (292, 303)
+AVATAR_SIZE = 338
+AVATAR_X = AVATAR_CENTER[0] - AVATAR_SIZE // 2
+AVATAR_Y = AVATAR_CENTER[1] - AVATAR_SIZE // 2
 
 
-# =========================
+# =========================================================
 # IDENTITY
-# =========================
-DISPLAY_NAME_CENTER = (835, 203)
-DISPLAY_NAME_MAX_WIDTH = 500
+# =========================================================
+# Значения начинаются после уже нарисованных DISPLAY NAME / @USERNAME.
+# Не центрируем текст поверх всей строки, иначе длинные имена залезают
+# на подпись шаблона.
+DISPLAY_NAME_POS = (705, 204)
+DISPLAY_NAME_MAX_WIDTH = 375
 
-USERNAME_CENTER = (836, 285)
-USERNAME_MAX_WIDTH = 440
+USERNAME_POS = (720, 285)
+USERNAME_MAX_WIDTH = 360
 
 
-# =========================
+# =========================================================
 # STATUS VALUES
-# =========================
-VERIFICATION_CENTER = (636, 524)
-VERIFICATION_MAX_WIDTH = 150
+# =========================================================
+# Значения находятся между подписью и нижней декоративной линией.
+VERIFICATION_CENTER = (635, 520)
+VERIFICATION_MAX_WIDTH = 130
 
-MILESTONE_CENTER = (829, 524)
-MILESTONE_MAX_WIDTH = 160
+MILESTONE_CENTER = (829, 520)
+MILESTONE_MAX_WIDTH = 145
 
-CASES_CENTER = (1025, 524)
-CASES_MAX_WIDTH = 110
+CASES_CENTER = (1025, 520)
+CASES_MAX_WIDTH = 90
 
 
-# =========================
+# =========================================================
 # PROGRESS VALUES
-# =========================
+# =========================================================
 LEVEL_CENTER = (1347, 268)
 RANK_CENTER = (1686, 268)
 
-TOTAL_XP_CENTER = (1348, 416)
-XP_NEXT_CENTER = (1686, 416)
+# Поднимаем XP относительно декоративной звезды и линии.
+TOTAL_XP_CENTER = (1347, 411)
+XP_NEXT_CENTER = (1686, 411)
 
-BALANCE_CENTER = (1594, 518)
+# Число баланса располагается в свободной части строки справа.
+BALANCE_CENTER = (1592, 511)
 
 
-# =========================
+# =========================================================
 # ACTIVITY VALUES
-# =========================
-# Для нижнего блока используем одну baseline, а не mm-центрирование.
-# Так "0 min" и "1" стоят визуально на одной линии.
-ACTIVITY_BASELINE_Y = 655
-VOICE_CENTER_X = 752
-MESSAGES_CENTER_X = 1544
+# =========================================================
+# Значения идут под заголовком, но выше нижней линии.
+VOICE_CENTER = (748, 650)
+MESSAGES_CENTER = (1540, 650)
 
 
 @dataclass(frozen=True)
@@ -112,12 +117,21 @@ def verification_value(status: str) -> str:
 def get_profile_badges(
     data: ProfileCardData,
 ) -> list[tuple[str, str]]:
-    milestone = data.milestone_name or "NO MILESTONE"
+    milestone = data.milestone_name or "NOT OPENED"
 
     return [
-        (verification_value(data.verification_status), "verification"),
-        (milestone, "milestone"),
-        (f"CASES · {data.eden_cases}", "cases"),
+        (
+            verification_value(data.verification_status),
+            "verification",
+        ),
+        (
+            milestone,
+            "milestone",
+        ),
+        (
+            str(data.eden_cases),
+            "cases",
+        ),
     ]
 
 
@@ -127,20 +141,30 @@ def fit_font(
     font_path: Path,
     start_size: int,
     max_width: int,
-    min_size: int = 14,
+    min_size: int = 12,
 ) -> ImageFont.FreeTypeFont:
     size = start_size
 
     while size >= min_size:
-        font = ImageFont.truetype(font_path, size)
-        bbox = draw.textbbox((0, 0), text, font=font)
+        font = ImageFont.truetype(
+            font_path,
+            size,
+        )
+        bbox = draw.textbbox(
+            (0, 0),
+            text,
+            font=font,
+        )
 
         if bbox[2] - bbox[0] <= max_width:
             return font
 
         size -= 1
 
-    return ImageFont.truetype(font_path, min_size)
+    return ImageFont.truetype(
+        font_path,
+        min_size,
+    )
 
 
 def draw_centered_text(
@@ -149,8 +173,8 @@ def draw_centered_text(
     text: str,
     *,
     max_width: int,
-    start_size: int = 25,
-    min_size: int = 13,
+    start_size: int = 22,
+    min_size: int = 12,
     font_path: Path = FONT_PATH,
     color: str = TEXT_COLOR,
 ) -> None:
@@ -174,10 +198,9 @@ def draw_centered_text(
     )
 
 
-def draw_baseline_text(
+def draw_left_text(
     card: Image.Image,
-    x: int,
-    baseline_y: int,
+    position: tuple[int, int],
     text: str,
     *,
     max_width: int,
@@ -198,11 +221,11 @@ def draw_baseline_text(
     )
 
     draw.text(
-        (x, baseline_y),
+        position,
         text,
         font=font,
         fill=color,
-        anchor="ms",
+        anchor="lm",
     )
 
 
@@ -210,7 +233,9 @@ async def prepare_avatar(
     user: discord.Member,
 ) -> Image.Image:
     avatar_bytes = await user.display_avatar.read()
-    avatar = Image.open(BytesIO(avatar_bytes)).convert("RGBA")
+    avatar = Image.open(
+        BytesIO(avatar_bytes)
+    ).convert("RGBA")
 
     avatar = ImageOps.fit(
         avatar,
@@ -226,7 +251,12 @@ async def prepare_avatar(
     )
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.ellipse(
-        (0, 0, AVATAR_SIZE - 1, AVATAR_SIZE - 1),
+        (
+            0,
+            0,
+            AVATAR_SIZE - 1,
+            AVATAR_SIZE - 1,
+        ),
         fill=255,
     )
 
@@ -244,9 +274,14 @@ async def prepare_avatar(
     return result
 
 
-def username_text(user: discord.Member) -> str:
+def username_text(
+    user: discord.Member,
+) -> str:
     if user.discriminator != "0":
-        return f"@{user.name}#{user.discriminator}"
+        return (
+            f"@{user.name}"
+            f"#{user.discriminator}"
+        )
 
     return f"@{user.name}"
 
@@ -255,23 +290,23 @@ def draw_identity(
     card: Image.Image,
     user: discord.Member,
 ) -> None:
-    draw_centered_text(
+    draw_left_text(
         card,
-        DISPLAY_NAME_CENTER,
+        DISPLAY_NAME_POS,
         user.display_name,
         max_width=DISPLAY_NAME_MAX_WIDTH,
-        start_size=31,
-        min_size=18,
+        start_size=27,
+        min_size=16,
         font_path=FONT_PATH,
     )
 
-    draw_centered_text(
+    draw_left_text(
         card,
-        USERNAME_CENTER,
+        USERNAME_POS,
         username_text(user),
         max_width=USERNAME_MAX_WIDTH,
-        start_size=20,
-        min_size=14,
+        start_size=19,
+        min_size=13,
         font_path=FONT_PATH2,
         color=SECONDARY_TEXT_COLOR,
     )
@@ -284,10 +319,13 @@ def draw_statuses(
     draw_centered_text(
         card,
         VERIFICATION_CENTER,
-        verification_value(data.verification_status),
+        verification_value(
+            data.verification_status
+        ),
         max_width=VERIFICATION_MAX_WIDTH,
-        start_size=16,
-        min_size=10,
+        start_size=13,
+        min_size=9,
+        font_path=FONT_PATH2,
     )
 
     draw_centered_text(
@@ -295,8 +333,9 @@ def draw_statuses(
         MILESTONE_CENTER,
         data.milestone_name or "NOT OPENED",
         max_width=MILESTONE_MAX_WIDTH,
-        start_size=15,
+        start_size=13,
         min_size=9,
+        font_path=FONT_PATH2,
     )
 
     draw_centered_text(
@@ -304,8 +343,8 @@ def draw_statuses(
         CASES_CENTER,
         str(data.eden_cases),
         max_width=CASES_MAX_WIDTH,
-        start_size=23,
-        min_size=15,
+        start_size=20,
+        min_size=14,
     )
 
 
@@ -317,45 +356,47 @@ def draw_progress_values(
         card,
         LEVEL_CENTER,
         str(data.level),
-        max_width=95,
-        start_size=37,
-        min_size=24,
+        max_width=85,
+        start_size=34,
+        min_size=23,
     )
 
     draw_centered_text(
         card,
         RANK_CENTER,
         f"#{data.rank}",
-        max_width=105,
-        start_size=34,
-        min_size=22,
+        max_width=95,
+        start_size=31,
+        min_size=21,
     )
 
     draw_centered_text(
         card,
         TOTAL_XP_CENTER,
         format_number(data.total_xp),
-        max_width=150,
-        start_size=21,
-        min_size=14,
+        max_width=145,
+        start_size=18,
+        min_size=13,
     )
 
     draw_centered_text(
         card,
         XP_NEXT_CENTER,
-        format_number(data.xp_to_next_level),
-        max_width=150,
-        start_size=21,
-        min_size=14,
+        format_number(
+            data.xp_to_next_level
+        ),
+        max_width=145,
+        start_size=18,
+        min_size=13,
     )
 
     draw_centered_text(
         card,
         BALANCE_CENTER,
         format_number(data.currency),
-        max_width=260,
-        start_size=23,
-        min_size=15,
+        max_width=245,
+        start_size=20,
+        min_size=14,
     )
 
 
@@ -363,24 +404,24 @@ def draw_activity_values(
     card: Image.Image,
     data: ProfileCardData,
 ) -> None:
-    draw_baseline_text(
+    draw_centered_text(
         card,
-        VOICE_CENTER_X,
-        ACTIVITY_BASELINE_Y,
-        format_voice_time(data.voice_seconds),
-        max_width=220,
-        start_size=22,
-        min_size=14,
+        VOICE_CENTER,
+        format_voice_time(
+            data.voice_seconds
+        ),
+        max_width=205,
+        start_size=19,
+        min_size=13,
     )
 
-    draw_baseline_text(
+    draw_centered_text(
         card,
-        MESSAGES_CENTER_X,
-        ACTIVITY_BASELINE_Y,
+        MESSAGES_CENTER,
         format_number(data.messages),
-        max_width=180,
-        start_size=22,
-        min_size=14,
+        max_width=170,
+        start_size=19,
+        min_size=13,
     )
 
 
@@ -402,7 +443,8 @@ async def create_profile_card_v2(
         raise RuntimeError(
             "profile_template_v2.png должен иметь размер "
             f"{TEMPLATE_SIZE[0]}x{TEMPLATE_SIZE[1]}, "
-            f"получено {card.size[0]}x{card.size[1]}"
+            f"получено "
+            f"{card.size[0]}x{card.size[1]}"
         )
 
     avatar = await prepare_avatar(user)
@@ -412,10 +454,22 @@ async def create_profile_card_v2(
         avatar,
     )
 
-    draw_identity(card, user)
-    draw_statuses(card, data)
-    draw_progress_values(card, data)
-    draw_activity_values(card, data)
+    draw_identity(
+        card,
+        user,
+    )
+    draw_statuses(
+        card,
+        data,
+    )
+    draw_progress_values(
+        card,
+        data,
+    )
+    draw_activity_values(
+        card,
+        data,
+    )
 
     buffer = BytesIO()
     card.save(
