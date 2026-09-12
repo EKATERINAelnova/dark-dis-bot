@@ -1,24 +1,13 @@
+from config.leveling import VOICE_XP_PER_MINUTE
 from database.connection import get_db
 from database.models import MemberStats
-from config.leveling import VOICE_XP_PER_MINUTE
-from utils.leveling import level_from_xp
+from services.progression import calculate_progression
 
-
-# =========================================================
-# MEMBER
-# =========================================================
 
 async def get_or_create_member(
     guild_id: int,
     user_id: int,
 ) -> MemberStats:
-    """
-    Возвращает статистику участника.
-
-    Если участника ещё нет в базе,
-    создаёт запись с нулевыми значениями.
-    """
-
     async with get_db() as db:
         await db.execute(
             """
@@ -46,7 +35,7 @@ async def get_or_create_member(
                 eden_cases
             FROM member_stats
             WHERE guild_id = ?
-            AND user_id = ?
+              AND user_id = ?
             """,
             (
                 guild_id,
@@ -55,7 +44,6 @@ async def get_or_create_member(
         )
 
         row = await cursor.fetchone()
-
         await cursor.close()
         await db.commit()
 
@@ -79,43 +67,25 @@ async def get_member_stats(
     guild_id: int,
     user_id: int,
 ) -> MemberStats:
-    """
-    Алиас для получения статистики участника.
-    """
-
     return await get_or_create_member(
         guild_id=guild_id,
         user_id=user_id,
     )
 
 
-# =========================================================
-# MESSAGES
-# =========================================================
-
 async def record_message(
     guild_id: int,
     user_id: int,
     xp_gain: int = 0,
 ) -> tuple[int, int]:
-    """
-    Учитывает сообщение и начисляет XP.
-
-    Возвращает количество полученных
-    EDEN CASE за новые уровни.
-    """
-
     if xp_gain < 0:
         raise ValueError(
-            "Начисление XP за сообщение "
-            "не может быть отрицательным"
+            "Начисление XP за сообщение не может быть отрицательным"
         )
 
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             await db.execute(
                 """
@@ -152,20 +122,9 @@ async def record_message(
                     "Не удалось получить XP участника"
                 )
 
-            old_xp = int(row[0])
-            new_xp = old_xp + xp_gain
-
-            old_level = level_from_xp(
-                old_xp
-            )
-
-            new_level = level_from_xp(
-                new_xp
-            )
-
-            cases_gained = max(
-                0,
-                new_level - old_level,
+            progression = calculate_progression(
+                old_xp=int(row[0]),
+                xp_gain=xp_gain,
             )
 
             await db.execute(
@@ -179,8 +138,8 @@ async def record_message(
                   AND user_id = ?
                 """,
                 (
-                    new_xp,
-                    cases_gained,
+                    progression.new_xp,
+                    progression.cases_gained,
                     guild_id,
                     user_id,
                 ),
@@ -188,42 +147,27 @@ async def record_message(
 
             await db.commit()
 
-            return cases_gained, new_level
+            return (
+                progression.cases_gained,
+                progression.new_level,
+            )
 
         except Exception:
             await db.rollback()
             raise
 
 
-# =========================================================
-# VOICE
-# =========================================================
-
 async def add_voice_seconds(
     guild_id: int,
     user_id: int,
     seconds: int,
 ) -> tuple[int, int, int]:
-    """
-    Добавляет проведённое в голосовом канале время,
-    начисляет XP за полностью завершённые минуты
-    и выдаёт EDEN CASE за новые уровни.
-
-    Возвращает количество начисленного XP.
-    """
-
     if seconds <= 0:
         return 0, 0, 1
 
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
-
-            # =================================================
-            # MEMBER
-            # =================================================
+            await db.execute("BEGIN IMMEDIATE")
 
             await db.execute(
                 """
@@ -238,10 +182,6 @@ async def add_voice_seconds(
                     user_id,
                 ),
             )
-
-            # =================================================
-            # CURRENT STATS
-            # =================================================
 
             cursor = await db.execute(
                 """
@@ -268,27 +208,11 @@ async def add_voice_seconds(
 
             old_seconds = int(row[0])
             old_xp = int(row[1])
-
-            new_seconds = (
-                old_seconds
-                + seconds
-            )
-
-            # =================================================
-            # VOICE XP
-            # =================================================
-
-            old_minutes = (
-                old_seconds // 60
-            )
-
-            new_minutes = (
-                new_seconds // 60
-            )
+            new_seconds = old_seconds + seconds
 
             earned_minutes = (
-                new_minutes
-                - old_minutes
+                new_seconds // 60
+                - old_seconds // 60
             )
 
             xp_gain = (
@@ -296,31 +220,10 @@ async def add_voice_seconds(
                 * VOICE_XP_PER_MINUTE
             )
 
-            new_xp = (
-                old_xp
-                + xp_gain
+            progression = calculate_progression(
+                old_xp=old_xp,
+                xp_gain=xp_gain,
             )
-
-            # =================================================
-            # LEVEL REWARD
-            # =================================================
-
-            old_level = level_from_xp(
-                old_xp
-            )
-
-            new_level = level_from_xp(
-                new_xp
-            )
-
-            cases_gained = max(
-                0,
-                new_level - old_level,
-            )
-
-            # =================================================
-            # UPDATE
-            # =================================================
 
             await db.execute(
                 """
@@ -334,8 +237,8 @@ async def add_voice_seconds(
                 """,
                 (
                     new_seconds,
-                    new_xp,
-                    cases_gained,
+                    progression.new_xp,
+                    progression.cases_gained,
                     guild_id,
                     user_id,
                 ),
@@ -345,27 +248,19 @@ async def add_voice_seconds(
 
             return (
                 xp_gain,
-                cases_gained,
-                new_level,
+                progression.cases_gained,
+                progression.new_level,
             )
 
         except Exception:
             await db.rollback()
             raise
 
-# =========================================================
-# RANK
-# =========================================================
 
 async def get_member_rank(
     guild_id: int,
     user_id: int,
 ) -> int:
-    """
-    Возвращает позицию участника
-    в общем рейтинге по XP.
-    """
-
     stats = await get_or_create_member(
         guild_id=guild_id,
         user_id=user_id,
@@ -386,7 +281,6 @@ async def get_member_rank(
         )
 
         row = await cursor.fetchone()
-
         await cursor.close()
 
     if row is None:
@@ -395,24 +289,11 @@ async def get_member_rank(
     return int(row[0]) + 1
 
 
-# =========================================================
-# XP
-# =========================================================
-
 async def add_xp(
     guild_id: int,
     user_id: int,
     amount: int,
 ) -> tuple[int, int, int]:
-    """
-    Добавляет XP участнику.
-
-    Возвращает:
-    - новый XP;
-    - новый уровень;
-    - количество полученных EDEN CASE.
-    """
-
     if amount <= 0:
         raise ValueError(
             "Количество XP должно быть больше нуля"
@@ -420,9 +301,7 @@ async def add_xp(
 
     async with get_db() as db:
         try:
-            await db.execute(
-                "BEGIN IMMEDIATE"
-            )
+            await db.execute("BEGIN IMMEDIATE")
 
             await db.execute(
                 """
@@ -459,24 +338,9 @@ async def add_xp(
                     "Не удалось получить XP участника"
                 )
 
-            old_xp = int(row[0])
-
-            old_level = level_from_xp(
-                old_xp
-            )
-
-            new_xp = (
-                old_xp
-                + amount
-            )
-
-            new_level = level_from_xp(
-                new_xp
-            )
-
-            cases_gained = max(
-                0,
-                new_level - old_level,
+            progression = calculate_progression(
+                old_xp=int(row[0]),
+                xp_gain=amount,
             )
 
             await db.execute(
@@ -489,8 +353,8 @@ async def add_xp(
                   AND user_id = ?
                 """,
                 (
-                    new_xp,
-                    cases_gained,
+                    progression.new_xp,
+                    progression.cases_gained,
                     guild_id,
                     user_id,
                 ),
@@ -499,34 +363,23 @@ async def add_xp(
             await db.commit()
 
             return (
-                new_xp,
-                new_level,
-                cases_gained,
+                progression.new_xp,
+                progression.new_level,
+                progression.cases_gained,
             )
 
         except Exception:
             await db.rollback()
             raise
 
-# =========================================================
-# ENSURE MEMBERS
-# =========================================================
 
 async def ensure_members_exist(
     guild_id: int,
     user_ids: list[int],
 ) -> None:
-    """
-    Создаёт отсутствующие записи участников.
-
-    Уже существующие данные не изменяются.
-    """
-
     if not user_ids:
         return
 
-    # Убираем возможные дубли,
-    # чтобы не отправлять лишние INSERT.
     unique_user_ids = list(
         dict.fromkeys(user_ids)
     )
@@ -545,8 +398,7 @@ async def ensure_members_exist(
                     guild_id,
                     user_id,
                 )
-                for user_id
-                in unique_user_ids
+                for user_id in unique_user_ids
             ],
         )
 
