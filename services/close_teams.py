@@ -31,24 +31,13 @@ class CloseTeams:
 
 
 async def init_close_teams() -> None:
-    async with get_db() as db:
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS close_settings (
-                activity_id INTEGER PRIMARY KEY,
-                team_mode TEXT NOT NULL,
-                captain_a_id INTEGER,
-                captain_b_id INTEGER,
-                draft_turn TEXT,
+    """
+    Оставлено временно для совместимости со старым Cog.
 
-                FOREIGN KEY (activity_id)
-                    REFERENCES activities(activity_id)
-                    ON DELETE CASCADE
-            )
-            """
-        )
+    Таблица close_settings создаётся централизованно в database.schema.
+    """
 
-        await db.commit()
+    return None
 
 
 async def create_close_settings(
