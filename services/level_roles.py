@@ -1,14 +1,6 @@
 import discord
 
-
-LEVEL_ROLES = {
-    5: "Seedling",
-    10: "Rooted",
-    20: "Bloom",
-    30: "Gardenbound",
-    40: "Keeper",
-    50: "Edenborn",
-}
+from config.roles import LEVEL_ROLES
 
 
 def get_level_role_name(
@@ -36,6 +28,13 @@ async def sync_level_role(
     member: discord.Member,
     level: int,
 ) -> discord.Role | None:
+    """
+    Синхронизирует только юбилейную роль активности.
+
+    Конкретные уровни и названия ролей задаются в config.roles.
+    Если список пока пуст, функция безопасно ничего не делает.
+    """
+
     target_name = get_level_role_name(
         level
     )
@@ -63,7 +62,6 @@ async def sync_level_role(
                 f"Не найдена роль {target_name}"
             )
 
-    # Удаляем старые level-роли
     roles_to_remove = [
         role
         for role in current_level_roles
@@ -73,17 +71,16 @@ async def sync_level_role(
     if roles_to_remove:
         await member.remove_roles(
             *roles_to_remove,
-            reason="LOST EDEN level role update",
+            reason="LOST EDEN activity milestone role update",
         )
 
-    # Выдаём актуальную роль
     if (
         target_role is not None
         and target_role not in member.roles
     ):
         await member.add_roles(
             target_role,
-            reason="LOST EDEN level milestone",
+            reason="LOST EDEN activity milestone",
         )
 
     return target_role
