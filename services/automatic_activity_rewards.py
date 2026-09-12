@@ -18,6 +18,13 @@ from services.activity_rewards import (
     grant_activity_reward,
     reward_activity_participants,
 )
+from services.reward_decisions import (
+    get_reward_decision,
+    save_reward_decision,
+)
+
+
+DUEL_REWARD_POLICY = "duel:auto"
 
 
 def get_event_rewards(
@@ -25,9 +32,6 @@ def get_event_rewards(
 ) -> dict[str, int]:
     """
     Преобразует ключ пресета EVENT в набор наград.
-
-    Логика пресетов находится в service-слое, чтобы Discord Cogs
-    только отображали данные и не были зависимостью бизнес-логики.
     """
 
     key = reward_preset or "standard"
@@ -107,6 +111,15 @@ async def check_duel_reward_allowed(
     activity_id: int,
     winner_id: int,
 ) -> str:
+    saved_status = await get_reward_decision(
+        activity_id=activity_id,
+        user_id=winner_id,
+        policy_key=DUEL_REWARD_POLICY,
+    )
+
+    if saved_status is not None:
+        return saved_status
+
     now = int(time.time())
 
     async with get_db() as db:
@@ -140,7 +153,12 @@ async def check_duel_reward_allowed(
             starts_at is None
             or now - starts_at < DUEL_MIN_DURATION_SECONDS
         ):
-            return "too_short"
+            return await save_reward_decision(
+                activity_id=activity_id,
+                user_id=winner_id,
+                policy_key=DUEL_REWARD_POLICY,
+                status="too_short",
+            )
 
         cursor = await db.execute(
             """
@@ -167,7 +185,12 @@ async def check_duel_reward_allowed(
         await cursor.close()
 
         if int(row[0] or 0) >= DUEL_REWARD_DAILY_LIMIT:
-            return "daily_limit"
+            return await save_reward_decision(
+                activity_id=activity_id,
+                user_id=winner_id,
+                policy_key=DUEL_REWARD_POLICY,
+                status="daily_limit",
+            )
 
         cursor = await db.execute(
             """
@@ -231,9 +254,19 @@ async def check_duel_reward_allowed(
             and now - last_pair_reward
             < DUEL_PAIR_REWARD_COOLDOWN_SECONDS
         ):
-            return "pair_cooldown"
+            return await save_reward_decision(
+                activity_id=activity_id,
+                user_id=winner_id,
+                policy_key=DUEL_REWARD_POLICY,
+                status="pair_cooldown",
+            )
 
-    return "allowed"
+    return await save_reward_decision(
+        activity_id=activity_id,
+        user_id=winner_id,
+        policy_key=DUEL_REWARD_POLICY,
+        status="allowed",
+    )
 
 
 async def reward_duel_winner_automatically(
