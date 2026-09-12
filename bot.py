@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from database.connection import init_db
+from database.schema import init_db
 from utils.embeds import error_embed
 
 
