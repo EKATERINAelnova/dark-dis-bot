@@ -18,6 +18,7 @@ from services.activities import (
     Activity,
     change_activity_status,
     create_activity,
+    get_activity,
     get_activity_participants,
     get_open_activities,
     set_activity_message,
@@ -25,20 +26,17 @@ from services.activities import (
 from services.close_results import (
     confirm_close_result,
     dispute_close_result,
-    init_close_results,
     propose_close_result,
 )
 from services.close_rewards import reward_close_automatically
 from services.close_teams import (
     TEAM_MODE_CAPTAINS,
     TEAM_MODE_RANDOM,
-    assign_random_teams,
     create_close_settings,
     get_close_settings,
-    init_close_teams,
     pick_close_player,
-    prepare_captain_draft,
 )
+from services.closes import start_close as start_close_service
 from views.activity.activity_view import (
     ActivityView,
     build_activity_embed,
@@ -58,9 +56,6 @@ class Closes(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        await init_close_teams()
-        await init_close_results()
-
         activities = await get_open_activities(
             activity_type="close"
         )
@@ -245,99 +240,71 @@ class Closes(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        activity = await get_activity_for_command(
-            interaction=interaction,
+        result = await start_close_service(
+            guild_id=interaction.guild.id,
             activity_id=activity_id,
-            activity_type="close",
         )
 
-        if activity is None:
-            return
-
-        participants = await get_activity_participants(
-            activity_id=activity_id
-        )
-
-        required = activity.max_participants or 0
-
-        if len(participants) != required:
+        if result.status == "wrong_count":
             await interaction.followup.send(
                 (
                     f"Для запуска этого CLOSE нужно ровно "
-                    f"**{required}** участников.\n"
-                    f"Сейчас записано: **{len(participants)}**."
+                    f"**{result.required}** участников.\n"
+                    f"Сейчас записано: **{result.actual}**."
                 ),
                 ephemeral=True,
             )
             return
 
-        settings = await get_close_settings(activity_id)
+        messages = {
+            "not_found": "CLOSE или его настройки не найдены.",
+            "not_open": "Этот CLOSE уже нельзя запустить.",
+            "invalid_config": "У этого CLOSE некорректный размер команд.",
+            "invalid_mode": "У этого CLOSE неизвестный режим формирования команд.",
+        }
 
-        if settings is None:
+        if result.status != "started":
             await interaction.followup.send(
-                "Настройки этого CLOSE не найдены.",
+                messages.get(
+                    result.status,
+                    "Не удалось запустить CLOSE.",
+                ),
                 ephemeral=True,
             )
             return
 
-        if settings.team_mode == TEAM_MODE_RANDOM:
-            team_result = await assign_random_teams(
-                activity_id
-            )
-        else:
-            team_result = await prepare_captain_draft(
-                activity_id
-            )
-
-        if team_result not in {"assigned", "ready"}:
-            await interaction.followup.send(
-                "Не удалось сформировать команды CLOSE.",
-                ephemeral=True,
-            )
-            return
-
-        status, activity = await change_activity_status(
+        activity = await get_activity(
             guild_id=interaction.guild.id,
             activity_id=activity_id,
-            new_status="running",
         )
 
-        if status != "changed" or activity is None:
+        if activity is None:
             await interaction.followup.send(
-                "Этот CLOSE уже нельзя запустить.",
+                "CLOSE запущен, но не удалось обновить его сообщение.",
                 ephemeral=True,
             )
             return
 
         await self.refresh_close_message(activity)
 
-        if settings.team_mode == TEAM_MODE_RANDOM:
+        if result.team_mode == TEAM_MODE_RANDOM:
             text = (
                 f"CLOSE **#{activity_id}** запущен.\n"
                 "Команды распределены случайно."
             )
         else:
-            updated_settings = await get_close_settings(
-                activity_id
+            first_captain_id = (
+                result.captain_a_id
+                if result.draft_turn == "a"
+                else result.captain_b_id
             )
 
-            if updated_settings is None:
-                text = (
-                    f"CLOSE **#{activity_id}** запущен."
-                )
-            else:
-                first_captain_id = (
-                    updated_settings.captain_a_id
-                    if updated_settings.draft_turn == "a"
-                    else updated_settings.captain_b_id
-                )
-
-                text = (
-                    f"CLOSE **#{activity_id}** запущен.\n"
-                    f"Капитан A: <@{updated_settings.captain_a_id}>\n"
-                    f"Капитан B: <@{updated_settings.captain_b_id}>\n"
-                    f"Первым выбирает <@{first_captain_id}>."
-                )
+            text = (
+                f"CLOSE **#{activity_id}** запущен.\n"
+                f"Капитан A: <@{result.captain_a_id}>\n"
+                f"Капитан B: <@{result.captain_b_id}>\n"
+                f"Первым выбирает <@{first_captain_id}>."
+            )
 
         await interaction.followup.send(
             text,
