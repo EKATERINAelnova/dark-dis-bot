@@ -1,9 +1,14 @@
 import asyncio
 import os
 import sys
+from io import BytesIO
 from pathlib import Path
 
+from PIL import Image, ImageDraw
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ASSETS_DIR = PROJECT_ROOT / "assets"
 
 sys.path.insert(
     0,
@@ -16,20 +21,43 @@ from utils.profile_card_v2 import (
 )
 
 
-AVATAR_PATH = (
-    PROJECT_ROOT
-    / "assets"
-    / "preview_avatar.png"
-)
+AVATAR_PATH = ASSETS_DIR / "preview_avatar.png"
+OUTPUT_PATH = PROJECT_ROOT / "preview_template_v2.png"
 
-OUTPUT_PATH = (
-    PROJECT_ROOT
-    / "preview_profile.png"
-)
 
 class PreviewAvatar:
-    async def read(self):
-        return AVATAR_PATH.read_bytes()
+    async def read(self) -> bytes:
+        if AVATAR_PATH.exists():
+            return AVATAR_PATH.read_bytes()
+
+        image = Image.new(
+            "RGB",
+            (512, 512),
+            "#4A3A35",
+        )
+
+        draw = ImageDraw.Draw(image)
+
+        draw.ellipse(
+            (56, 56, 456, 456),
+            outline="#D7C09E",
+            width=8,
+        )
+
+        draw.text(
+            (256, 256),
+            "PREVIEW",
+            fill="#E9D4B7",
+            anchor="mm",
+        )
+
+        buffer = BytesIO()
+        image.save(
+            buffer,
+            format="PNG",
+        )
+
+        return buffer.getvalue()
 
 
 class PreviewUser:
@@ -39,7 +67,7 @@ class PreviewUser:
     display_avatar = PreviewAvatar()
 
 
-async def main():
+async def main() -> None:
     data = ProfileCardData(
         level=5,
         rank=1,
@@ -66,9 +94,11 @@ async def main():
         f"Готово: {OUTPUT_PATH.resolve()}"
     )
 
-    os.startfile(
-        OUTPUT_PATH.resolve()
-    )
+    if hasattr(os, "startfile"):
+        os.startfile(
+            OUTPUT_PATH.resolve()
+        )
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
