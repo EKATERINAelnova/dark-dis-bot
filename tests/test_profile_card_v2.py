@@ -29,7 +29,7 @@ def test_verified_profile_values():
     assert values == [
         ("VERIFIED", "verification"),
         ("Bloom", "milestone"),
-        ("CASES · 3", "cases"),
+        ("3", "cases"),
     ]
 
 
@@ -44,8 +44,8 @@ def test_pending_profile_without_milestone():
 
     assert values == [
         ("PENDING", "verification"),
-        ("NO MILESTONE", "milestone"),
-        ("CASES · 0", "cases"),
+        ("NOT OPENED", "milestone"),
+        ("0", "cases"),
     ]
 
 
