@@ -8,7 +8,10 @@ from services.verification_roles import (
     get_verified_role_id,
     is_member_verified,
 )
-from utils.embeds import eden_embed
+from utils.embeds import (
+    eden_embed,
+    error_embed,
+)
 from utils.profile_card_v2 import (
     ProfileCardData,
     create_profile_card_v2,
@@ -31,16 +34,6 @@ def get_verification_status(
         if is_member_verified(member)
         else "pending"
     )
-
-
-def verification_text(status: str) -> str:
-    if status == "verified":
-        return "**Пройдена**"
-
-    if status == "unconfigured":
-        return "**Не настроена**"
-
-    return "**Ожидает подтверждения**"
 
 
 class Profile(commands.Cog):
@@ -100,20 +93,24 @@ class Profile(commands.Cog):
             milestone_name=milestone_name,
         )
 
-        card = await create_profile_card_v2(
-            user=user,
-            data=card_data,
-        )
+        try:
+            card = await create_profile_card_v2(
+                user=user,
+                data=card_data,
+            )
+        except (FileNotFoundError, RuntimeError) as error:
+            await interaction.followup.send(
+                embed=error_embed(
+                    title="Профиль не собран",
+                    description=str(error),
+                ),
+                ephemeral=True,
+            )
+            return
 
         file = discord.File(
             card,
             filename="profile.png",
-        )
-
-        milestone_text = (
-            f"**{milestone_name}**"
-            if milestone_name
-            else "Пока не открыта"
         )
 
         activities = progress.activities
@@ -131,32 +128,28 @@ class Profile(commands.Cog):
         )
 
         embed.add_field(
-            name="СТАТУС",
+            name="ДОСТИЖЕНИЯ",
             value=(
-                f"Верификация: {verification_text(status)}\n"
-                f"Юбилейная роль: {milestone_text}"
-            ),
-            inline=True,
-        )
-
-        embed.add_field(
-            name="КОЛЛЕКЦИЯ",
-            value=(
-                f"EDEN CASES: **{progress.stats.eden_cases}**\n"
-                f"Достижения: **{progress.achievements_unlocked}/"
+                f"Открыто: **{progress.achievements_unlocked}/"
                 f"{progress.achievements_total}**"
             ),
             inline=True,
         )
 
         embed.add_field(
-            name="ИГРЫ",
+            name="EVENTS",
             value=(
-                f"DUEL: **{activities.duels.wins} побед** "
-                f"из {activities.duels.participations} "
+                f"Участий: **{activities.events.participations}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="DUEL / CLOSE",
+            value=(
+                f"DUEL: **{activities.duels.wins}/{activities.duels.participations}** "
                 f"({activities.duels.winrate}%)\n"
-                f"CLOSE: **{activities.closes.wins} побед** "
-                f"из {activities.closes.participations} "
+                f"CLOSE: **{activities.closes.wins}/{activities.closes.participations}** "
                 f"({activities.closes.winrate}%)"
             ),
             inline=False,
