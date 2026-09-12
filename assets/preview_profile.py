@@ -77,6 +77,10 @@ async def main() -> None:
         total_xp=1129,
         xp_to_next_level=371,
         eden_cases=5,
+        achievements_unlocked=4,
+        achievements_total=12,
+        duels=3,
+        closes=7,
         verification_status="unconfigured",
         milestone_name=None,
     )
