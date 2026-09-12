@@ -104,6 +104,7 @@ GUILD_ID = require_int_env(
 
 EXTENSIONS = [
     "cogs.general.general",
+    "cogs.general.profile",
     "cogs.general.progress",
     "cogs.fun.fun",
     "cogs.activity",
